@@ -7,11 +7,9 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { TextInput } from "react-native-gesture-handler"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-
 export default function Login() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [role, setRole] = useState("parent") // Default role
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -19,7 +17,7 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      setError("Please enter both email and password")
+      setError("Vui lòng nhập email và mật khẩu")
       return
     }
 
@@ -27,9 +25,10 @@ export default function Login() {
     setIsLoading(true)
 
     try {
-      await login(email, password, role)
+      // Gọi API login với email và password
+      await login(email, password, "") // Role sẽ được xác định từ JWT token
     } catch (err) {
-      setError("Login failed. Please check your credentials.")
+      setError("Đăng nhập thất bại. Vui lòng kiểm tra thông tin đăng nhập.")
       console.error(err)
     } finally {
       setIsLoading(false)
@@ -42,7 +41,7 @@ export default function Login() {
         <View style={styles.logoContainer}>
           <Image source={{ uri: "https://via.placeholder.com/120" }} style={styles.logo} />
           <Text style={styles.title}>School Health Manager</Text>
-          <Text style={styles.subtitle}>Login to your account</Text>
+          <Text style={styles.subtitle}>Đăng nhập vào tài khoản của bạn</Text>
         </View>
 
         <View style={styles.form}>
@@ -52,7 +51,7 @@ export default function Login() {
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your email"
+              placeholder="Nhập email của bạn"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -61,38 +60,14 @@ export default function Login() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>Mật khẩu</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your password"
+              placeholder="Nhập mật khẩu"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
             />
-          </View>
-
-          <View style={styles.roleSelector}>
-            <Text style={styles.label}>Select Role:</Text>
-            <View style={styles.roleButtons}>
-              <TouchableOpacity
-                style={[styles.roleButton, role === "parent" && styles.selectedRole]}
-                onPress={() => setRole("parent")}
-              >
-                <Text style={styles.roleText}>Parent</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.roleButton, role === "student" && styles.selectedRole]}
-                onPress={() => setRole("student")}
-              >
-                <Text style={styles.roleText}>Student</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.roleButton, role === "nurse" && styles.selectedRole]}
-                onPress={() => setRole("nurse")}
-              >
-                <Text style={styles.roleText}>Nurse</Text>
-              </TouchableOpacity>
-            </View>
           </View>
 
           <TouchableOpacity
@@ -100,14 +75,14 @@ export default function Login() {
             onPress={handleLogin}
             disabled={isLoading}
           >
-            <Text style={styles.buttonText}>{isLoading ? "Logging in..." : "Login"}</Text>
+            <Text style={styles.buttonText}>{isLoading ? "Đang đăng nhập..." : "Đăng nhập"}</Text>
           </TouchableOpacity>
 
           <View style={styles.registerContainer}>
-            <Text style={styles.registerText}>Don't have an account? </Text>
-            <Link href="/auth/register" asChild>
+            <Text style={styles.registerText}>Chưa có tài khoản? </Text>
+            <Link href="/(auth)/register" asChild>
               <TouchableOpacity>
-                <Text style={styles.registerLink}>Register</Text>
+                <Text style={styles.registerLink}>Đăng ký</Text>
               </TouchableOpacity>
             </Link>
           </View>

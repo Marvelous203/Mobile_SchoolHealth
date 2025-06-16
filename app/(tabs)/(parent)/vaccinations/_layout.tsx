@@ -7,14 +7,14 @@ export default function VaccinationsLayout() {
         name="index"
         options={{
           title: "Vaccinations",
-          headerShown: true,
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="consent"
         options={{
           title: "Vaccination Consent",
-          headerShown: true,
+          headerShown: false,
           presentation: "modal",
         }}
       />
@@ -22,7 +22,14 @@ export default function VaccinationsLayout() {
         name="details"
         options={{
           title: "Vaccination Details",
-          headerShown: true,
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="event-detail"
+        options={{
+          title: "Chi tiết sự kiện tiêm chủng",
+          headerShown: false,
         }}
       />
     </Stack>

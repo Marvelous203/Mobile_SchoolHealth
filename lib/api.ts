@@ -1,5 +1,60 @@
-// This is a mock API service for the School Health Manager app
-// In a real app, this would connect to your backend server
+// This is the API service for the School Health Manager app
+// Updated to use real API endpoints
+
+// Get API URL from environment variables
+import { getAuthHeaders } from './auth';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL
+
+// Helper function to make API calls
+const apiCall = async (endpoint: string, options: RequestInit = {}) => {
+  const authHeaders = await getAuthHeaders()
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+        ...options.headers,
+      } as HeadersInit,
+    });
+    
+    // Always try to parse response body
+    const responseData = await response.json().catch(() => null)
+    
+    if (!response.ok) {
+      // Create error with server message if available
+      let errorMessage = `API Error: ${response.status} ${response.statusText}`
+      
+      if (responseData && responseData.message) {
+        errorMessage = responseData.message
+      }
+      
+      const error = new Error(errorMessage)
+      // Attach the full error response for detailed handling
+      ;(error as any).response = {
+        status: response.status,
+        data: responseData
+      }
+      throw error
+    }
+    
+    return responseData
+  } catch (error: any) {
+    // If it's already our custom error, re-throw it
+    if (error.response) {
+      throw error
+    }
+    
+    // Handle network errors
+    if (error.name === 'TypeError' && error.message === 'Network request failed') {
+      throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối internet.')
+    }
+    
+    // Re-throw other errors
+    throw error
+  }
+};
 
 // Types
 export interface Student {
@@ -11,9 +66,9 @@ export interface Student {
     chronicDiseases: string[]
     vision: string
     hearing: string
-  }
-  
-  export interface MedicineSubmission {
+}
+
+export interface MedicineSubmission {
     id: string
     studentId: string
     medicineName: string
@@ -23,9 +78,9 @@ export interface Student {
     endDate: string
     notes: string
     status: "pending" | "approved" | "completed"
-  }
-  
-  export interface VaccinationSession {
+}
+
+export interface VaccinationSession {
     id: string
     name: string
     date: string
@@ -33,27 +88,27 @@ export interface Student {
     status: "upcoming" | "in-progress" | "completed"
     details: string[]
     contraindications: string[]
-  }
-  
-  export interface VaccinationConsent {
+}
+
+export interface VaccinationConsent {
     id: string
     sessionId: string
     studentId: string
     consent: boolean
     notes: string
     status: "pending" | "approved" | "completed"
-  }
-  
-  export interface HealthCheckSession {
+}
+
+export interface HealthCheckSession {
     id: string
     name: string
     date: string
     description: string
     status: "upcoming" | "in-progress" | "completed"
     checkItems: string[]
-  }
-  
-  export interface HealthCheckResult {
+}
+
+export interface HealthCheckResult {
     id: string
     sessionId: string
     studentId: string
@@ -63,9 +118,9 @@ export interface Student {
     heartRate: number
     notes: string
     abnormal: boolean
-  }
-  
-  export interface MedicalIncident {
+}
+
+export interface MedicalIncident {
     id: string
     studentId: string
     type: "fever" | "fall" | "injury" | "other"
@@ -73,287 +128,370 @@ export interface Student {
     treatment: string
     date: string
     nurseId: string
-  }
-  
-  // Mock data
-  const mockStudents: Student[] = [
-    {
-      id: "1",
-      name: "John Doe",
-      class: "5A",
-      dob: "2013-05-15",
-      allergies: ["Peanuts", "Dust"],
-      chronicDiseases: [],
-      vision: "20/20",
-      hearing: "Normal",
+}
+
+// Login response interface
+export interface LoginResponse {
+    success: boolean
+    data: string // JWT token
+}
+
+// Register interfaces
+export interface StudentParent {
+    studentCode: string
+    type: "father" | "mother" | "guardian"
+}
+
+export interface RegisterRequest {
+    password: string
+    email: string
+    image?: string
+    fullName: string
+    phone: string
+    role: "admin" | "parent" | "student" | "nurse"
+    isDeleted?: boolean
+    studentParents?: StudentParent[]
+}
+
+export interface RegisterResponse {
+    success: boolean
+    message: string
+    data?: any
+    errors?: any[] // Add this for validation errors
+}
+
+// User Profile interfaces
+export interface UserProfile {
+    id: string
+    email: string
+    fullName: string
+    phone: string
+    role: "admin" | "parent" | "student" | "nurse"
+    image?: string
+    isDeleted?: boolean
+    studentParents?: StudentParent[]
+    createdAt?: string
+    updatedAt?: string
+}
+
+export interface GetUserProfileResponse {
+    success: boolean
+    message: string
+    data: UserProfile
+}
+
+// API methods
+export const api = {
+    // Authentication with real API
+    login: async (email: string, password: string): Promise<LoginResponse> => {
+        try {
+            const response = await apiCall('/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({ email, password })
+            });
+            
+            return response;
+        } catch (error) {
+            console.error('Login error:', error);
+            throw new Error('Invalid credentials');
+        }
     },
-    {
-      id: "2",
-      name: "Jane Smith",
-      class: "5B",
-      dob: "2013-08-22",
-      allergies: [],
-      chronicDiseases: ["Asthma"],
-      vision: "20/40",
-      hearing: "Normal",
+
+    // Register new user
+    register: async (userData: RegisterRequest): Promise<RegisterResponse> => {
+        try {
+            const response = await apiCall('/users/register', {
+                method: 'POST',
+                body: JSON.stringify(userData)
+            });
+            
+            return response;
+        } catch (error) {
+            console.error('Register error:', error);
+            throw new Error('Registration failed');
+        }
     },
-  ]
-  
-  const mockVaccinationSessions: VaccinationSession[] = [
-    {
-      id: "1",
-      name: "Annual Flu Vaccination",
-      date: "2023-10-15",
-      description: "Seasonal influenza vaccination to protect against the most common flu strains expected this season.",
-      status: "upcoming",
-      details: [
-        "Vaccine Type: Quadrivalent Influenza Vaccine",
-        "Administration: Intramuscular injection",
-        "Side Effects: May include soreness at injection site, low-grade fever, muscle aches",
-        "Duration of Protection: Approximately one year",
-      ],
-      contraindications: [
-        "Severe allergic reaction to previous flu vaccine",
-        "Current moderate to severe illness with fever",
-        "History of Guillain-Barré Syndrome",
-      ],
-    },
-    {
-      id: "2",
-      name: "MMR Booster",
-      date: "2023-11-10",
-      description: "Measles, Mumps, and Rubella booster shot for continued immunity.",
-      status: "upcoming",
-      details: [
-        "Vaccine Type: MMR (Measles, Mumps, Rubella)",
-        "Administration: Subcutaneous injection",
-        "Side Effects: May include fever, mild rash, swollen glands",
-        "Duration of Protection: Long-term immunity",
-      ],
-      contraindications: ["Severe allergic reaction to previous MMR vaccine", "Pregnancy", "Weakened immune system"],
-    },
-  ]
-  
-  const mockHealthCheckSessions: HealthCheckSession[] = [
-    {
-      id: "1",
-      name: "Annual Health Checkup",
-      date: "2023-09-20",
-      description: "Comprehensive health assessment including growth, vision, hearing, and general wellness.",
-      status: "completed",
-      checkItems: [
-        "Height and weight measurement",
-        "Vision screening",
-        "Hearing test",
-        "Blood pressure",
-        "General physical examination",
-      ],
-    },
-    {
-      id: "2",
-      name: "Dental Screening",
-      date: "2023-11-05",
-      description: "Basic dental examination to identify potential issues and promote oral hygiene.",
-      status: "upcoming",
-      checkItems: [
-        "Dental caries check",
-        "Gum health assessment",
-        "Oral hygiene evaluation",
-        "Orthodontic needs assessment",
-      ],
-    },
-  ]
-  
-  // Mock medicine submissions data
-  const mockMedicineSubmissions: MedicineSubmission[] = [
-    {
-      id: "1",
-      studentId: "1",
-      medicineName: "Paracetamol",
-      dosage: "500mg",
-      timesPerDay: 3,
-      startDate: "2024-01-15",
-      endDate: "2024-01-20",
-      notes: "Take after meals",
-      status: "pending"
-    },
-    {
-      id: "2",
-      studentId: "2",
-      medicineName: "Ventolin",
-      dosage: "2 puffs",
-      timesPerDay: 2,
-      startDate: "2024-01-10",
-      endDate: "2024-02-10",
-      notes: "As needed for asthma symptoms",
-      status: "approved"
-    }
-  ]
-  
-  // Mock health check history data
-  const mockHealthCheckHistory = [
-    {
-      id: "1",
-      sessionId: "1",
-      studentId: "1",
-      date: "2023-09-20",
-      height: 145,
-      weight: 35.5,
-      vision: "20/20",
-      heartRate: 80,
-      notes: "Normal growth and development",
-      abnormal: false
-    },
-    {
-      id: "2",
-      sessionId: "2",
-      studentId: "1",
-      date: "2023-03-15",
-      height: 142,
-      weight: 33.2,
-      vision: "20/20",
-      heartRate: 82,
-      notes: "Healthy checkup, no concerns",
-      abnormal: false
-    }
-  ]
-  
-  // API methods
-  export const api = {
-    // Authentication
-    login: async (email: string, password: string, role: string) => {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-  
-      // Mock authentication - in a real app, this would validate credentials with a backend
-      if (email && password) {
-        return { success: true, role }
-      }
-      throw new Error("Invalid credentials")
-    },
-  
+
     // Student data
     getStudentProfile: async (studentId: string) => {
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      const student = mockStudents.find((s) => s.id === studentId)
-      if (student) return student
-      throw new Error("Student not found")
+        return apiCall(`/students/${studentId}`);
     },
-  
+
     updateStudentProfile: async (studentId: string, data: Partial<Student>) => {
-      await new Promise((resolve) => setTimeout(resolve, 800))
-      return { success: true }
+        return apiCall(`/students/${studentId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
     },
-  
+
     // Vaccination
     getVaccinationSessions: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600))
-      return mockVaccinationSessions
+        return apiCall('/vaccinations/sessions');
     },
-  
+
     getVaccinationSession: async (sessionId: string) => {
-      await new Promise((resolve) => setTimeout(resolve, 400))
-      const session = mockVaccinationSessions.find((s) => s.id === sessionId)
-      if (session) return session
-      throw new Error("Vaccination session not found")
+        return apiCall(`/vaccinations/sessions/${sessionId}`);
     },
-  
+
     submitVaccinationConsent: async (data: Omit<VaccinationConsent, "id" | "status">) => {
-      await new Promise((resolve) => setTimeout(resolve, 800))
-      return { success: true, id: "new-consent-id" }
+        return apiCall('/vaccinations/consent', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
     },
-  
+
     // Health Checkups
     getHealthCheckSessions: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600))
-      return mockHealthCheckSessions
+        return apiCall('/health-checks/sessions');
     },
-  
+
     getHealthCheckSession: async (sessionId: string) => {
-      await new Promise((resolve) => setTimeout(resolve, 400))
-      const session = mockHealthCheckSessions.find((s) => s.id === sessionId)
-      if (session) return session
-      throw new Error("Health check session not found")
+        return apiCall(`/health-checks/sessions/${sessionId}`);
     },
-  
+
     submitHealthCheckConsent: async (sessionId: string, studentId: string, consent: boolean) => {
-      await new Promise((resolve) => setTimeout(resolve, 800))
-      return { success: true }
+        return apiCall('/health-checks/consent', {
+            method: 'POST',
+            body: JSON.stringify({ sessionId, studentId, consent })
+        });
     },
-  
+
     // Medicine submissions
     submitMedicine: async (data: Omit<MedicineSubmission, "id" | "status">) => {
-      await new Promise((resolve) => setTimeout(resolve, 800))
-      return { success: true, id: "new-medicine-id" }
+        return apiCall('/medicine/submissions', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
     },
-  
+
+    getMedicineSubmissions: async () => {
+        return apiCall('/medicine/submissions');
+    },
+
     // Nurse functions
     recordMedicalIncident: async (data: Omit<MedicalIncident, "id">) => {
-      await new Promise((resolve) => setTimeout(resolve, 800))
-      return { success: true, id: "new-incident-id" }
+        return apiCall('/medical-incidents', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
     },
-  
+
     recordHealthCheckResult: async (data: Omit<HealthCheckResult, "id">) => {
-      await new Promise((resolve) => setTimeout(resolve, 800))
-      return { success: true, id: "new-result-id" }
-    },
-  
-    getMedicineSubmissions: async () => {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      return {
-        data: mockMedicineSubmissions,
-        status: 200,
-        statusText: "OK"
-      }
+        return apiCall('/health-checks/results', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
     },
 
-
-    // Nurse functions
     getPendingMedicineSubmissions: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600))
-      return mockMedicineSubmissions.filter((submission) => submission.status === "pending")
+        return apiCall('/medicine/submissions?status=pending');
     },
-  async getVaccinationHistory(studentId: string) {
-    // Mock data for vaccination history
-    return [
-      {
-        id: "1",
-        name: "MMR Vaccine",
-        date: "2023-05-15",
-        notes: "First dose completed. No adverse reactions.",
-        status: "completed"
-      },
-      {
-        id: "2",
-        name: "Tetanus Booster",
-        date: "2023-03-10",
-        notes: "Routine booster shot administered successfully.",
-        status: "completed"
-      },
-      {
-        id: "3",
-        name: "Hepatitis B",
-        date: "2023-01-20",
-        notes: "Final dose of the series completed.",
-        status: "completed"
-      }
-    ]
 
-  },
-    getHealthCheckHistory: async (studentId: string) => {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 800))
-      
-      // Filter history for the specific student
-      const studentHistory = mockHealthCheckHistory.filter(record => record.studentId === studentId)
-      
-      if (studentHistory.length === 0) {
-        return []
-      }
-      
-      return studentHistory
+    getVaccinationHistory: async (studentId: string) => {
+        return apiCall(`/students/${studentId}/vaccination-history`);
     },
-}
-  
+
+    getHealthCheckHistory: async (studentId: string) => {
+        return apiCall(`/students/${studentId}/health-check-history`);
+    },
+
+    // User Profile - Get user by ID (works for all roles)
+    getUserProfile: async (userId: string): Promise<GetUserProfileResponse> => {
+        try {
+            console.log('👤 Getting user profile for ID:', userId)
+            
+            const response = await apiCall(`/users/${userId}`, {
+                method: 'GET'
+            });
+            
+            console.log('📋 User profile response:', response)
+            return response;
+        } catch (error) {
+            console.error('❌ Get user profile error:', error);
+            throw error; // Re-throw to preserve server error messages
+        }
+    },
+
+    // Get current user profile (using token)
+    getCurrentUserProfile: async (): Promise<GetUserProfileResponse> => {
+        try {
+            console.log('👤 Getting current user profile from token')
+            
+            const response = await apiCall('/users/me', {
+                method: 'GET'
+            });
+            
+            console.log('📋 Current user profile response:', response)
+            return response;
+        } catch (error) {
+            console.error('❌ Get current user profile error:', error);
+            throw error;
+        }
+    },
+
+    // Update user profile
+    updateUserProfile: async (userId: string, userData: Partial<UserProfile>): Promise<GetUserProfileResponse> => {
+        try {
+            console.log('✏️ Updating user profile for ID:', userId)
+            console.log('📝 Update data:', userData)
+            
+            const response = await apiCall(`/users/${userId}`, {
+                method: 'PUT',
+                body: JSON.stringify(userData)
+            });
+            
+            console.log('✅ User profile updated:', response)
+            return response;
+        } catch (error) {
+            console.error('❌ Update user profile error:', error);
+            throw error;
+        }
+    },
+
+    // User profile methods
+    getCurrentUser: async (): Promise<UserProfile> => {
+        try {
+            console.log('Fetching current user profile...');
+            const response = await apiCall('/users');
+            console.log('Current user profile response:', response);
+            return response;
+        } catch (error) {
+            console.error('Get current user error:', error);
+            throw error;
+        }
+    },
+
+    getUserById: async (userId: string): Promise<UserProfile> => {
+        try {
+            console.log(`Fetching user profile for ID: ${userId}`);
+            const response = await apiCall(`/users/${userId}`);
+            console.log('User profile response:', response);
+            return response;
+        } catch (error) {
+            console.error('Get user by ID error:', error);
+            throw error;
+        }
+    },
+
+    updateCurrentUser: async (userData: Partial<UserProfile>): Promise<UserProfile> => {
+        try {
+            console.log('Updating current user profile:', userData);
+            const response = await apiCall('/users', {
+                method: 'PUT',
+                body: JSON.stringify(userData)
+            });
+            console.log('Update user profile response:', response);
+            return response;
+        } catch (error) {
+            console.error('Update current user error:', error);
+            throw error;
+        }
+    },
+
+    // Student methods
+    getStudentById: async (studentId: string): Promise<any> => {
+        try {
+            console.log(`Fetching student profile for ID: ${studentId}`);
+            const response = await apiCall(`/students/${studentId}`);
+            console.log('Student profile response:', response);
+            return response;
+        } catch (error) {
+            console.error('Get student by ID error:', error);
+            throw error;
+        }
+    },
+        // Blog methods
+    searchBlogs: async (params: BlogSearchParams = {}): Promise<BlogSearchResponse> => {
+        try {
+            const queryParams = new URLSearchParams()
+            
+            if (params.query) queryParams.append('query', params.query)
+            if (params.categoryId) queryParams.append('categoryId', params.categoryId)
+            if (params.userId) queryParams.append('userId', params.userId)
+            if (params.pageSize) queryParams.append('pageSize', params.pageSize.toString())
+            if (params.pageNum) queryParams.append('pageNum', params.pageNum.toString())
+            
+            const endpoint = `/blogs/search${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+            console.log('🔍 Searching blogs with endpoint:', endpoint)
+            
+            const response = await apiCall(endpoint, {
+                method: 'GET'
+            })
+            
+            console.log('📚 Blog search response:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Search blogs error:', error)
+            throw error
+        }
+    },
+
+    getBlogById: async (blogId: string): Promise<BlogDetailResponse> => {
+        try {
+            console.log('📖 Getting blog detail for ID:', blogId)
+            
+            const response = await apiCall(`/blogs/${blogId}`, {
+                method: 'GET'
+            })
+            
+            console.log('📄 Blog detail response:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get blog detail error:', error)
+            throw error
+        }
+    },
+
+    // Comment methods
+// Thêm method này vào object api
+getCommentById: async (commentId: string): Promise<{ success: boolean; data: any; message?: string }> => {
+    try {
+        console.log('📝 Getting comment by ID:', commentId)
+        
+        const response = await apiCall(`/comments/${commentId}`, {
+            method: 'GET'
+        })
+        
+        console.log('📝 Comment response:', response)
+        return response
+    } catch (error) {
+        console.error('❌ Get comment by ID error:', error)
+        throw error
+    }
+},
+searchVaccineEvents: async (pageNum: number = 1, pageSize: number = 10): Promise<VaccineEventSearchResponse> => {
+    try {
+        console.log(`🔍 Searching vaccine events - Page: ${pageNum}, Size: ${pageSize}`)
+        
+        const response = await apiCall(`/vaccine-events/search/${pageNum}/${pageSize}`, {
+            method: 'GET'
+        })
+        
+        console.log('💉 Vaccine events search response:', response)
+        return response
+    } catch (error) {
+        console.error('❌ Search vaccine events error:', error)
+        throw error
+    }
+},
+
+getVaccineEventById: async (eventId: string): Promise<VaccineEventDetailResponse> => {
+    try {
+        console.log('📋 Getting vaccine event detail for ID:', eventId)
+        
+        const response = await apiCall(`/vaccine-events/${eventId}`, {
+            method: 'GET'
+        })
+        
+        console.log('💉 Vaccine event detail response:', response)
+        return response
+    } catch (error) {
+        console.error('❌ Get vaccine event detail error:', error)
+        throw error
+    }
+},
+
+
+
+};
+

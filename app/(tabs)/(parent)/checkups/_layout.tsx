@@ -11,7 +11,7 @@ export default function CheckupsLayout() {
         }}
       />
       <Stack.Screen
-        name="consent"
+        name="consent/[id]"
         options={{
           title: "Checkup Consent",
           headerShown: true,
@@ -19,7 +19,7 @@ export default function CheckupsLayout() {
         }}
       />
       <Stack.Screen
-        name="results"
+        name="results/[id]"
         options={{
           title: "Checkup Results",
           headerShown: true,

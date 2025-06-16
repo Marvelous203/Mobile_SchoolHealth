@@ -22,6 +22,7 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
+        {/* Xóa dòng này: <Stack.Screen name="student-profile" options={{ headerShown: true }} /> */}
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

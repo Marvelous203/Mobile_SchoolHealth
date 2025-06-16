@@ -2,22 +2,27 @@
 
 import { Link, router } from "expo-router"
 import { useState } from "react"
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { ScrollView, TextInput } from "react-native-gesture-handler"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { authApi, type RegisterRequest, type StudentParent } from "@/lib/auth"
 
 export default function Register() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [role, setRole] = useState("parent") // Default role
+  const [phone, setPhone] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  
+  // For parent role - student relationships
+  const [studentCode, setStudentCode] = useState("")
+  const [parentType, setParentType] = useState<"father" | "mother" | "guardian">("father")
 
   const handleRegister = async () => {
     // Basic validation
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !email || !password || !confirmPassword || !phone) {
       setError("Please fill in all fields")
       return
     }
@@ -27,17 +32,101 @@ export default function Register() {
       return
     }
 
+    // Validate student code for parent registration
+    if (!studentCode) {
+      setError("Please enter student code for parent registration")
+      return
+    }
+
     setError("")
     setIsLoading(true)
 
     try {
-      // In a real app, you would call an API to register the user
-      // For now, we'll just simulate a delay and redirect to login
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      router.replace("/auth/login")
-    } catch (err) {
-      setError("Registration failed. Please try again.")
-      console.error(err)
+      // Prepare registration data for parent
+      const registerData: RegisterRequest = {
+        password,
+        email,
+        fullName: name,
+        phone,
+        role: "parent", // Fixed as parent
+        isDeleted: false,
+        studentParents: [{
+          studentCode,
+          type: parentType
+        }]
+      }
+      
+      // Debug: Log the data being sent
+      console.log('Sending registration data:', JSON.stringify(registerData, null, 2))
+
+      // Call register API
+      const response = await authApi.register(registrationData)
+      
+      if (response.success) {
+        Alert.alert(
+          "Registration Successful", 
+          response.message || "Your parent account has been created successfully. Please login.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.replace("/(tabs)/(auth)/login")
+            }
+          ]
+        )
+      } else {
+        // Handle error response with message or errors array
+        let errorMessage = response.message || "Registration failed"
+        
+        // If there are specific errors, show them
+        if (response.errors && Array.isArray(response.errors) && response.errors.length > 0) {
+          errorMessage = response.errors.map(error => {
+            if (typeof error === 'object' && error.message) {
+              return error.message
+            }
+            return error.toString()
+          }).join(', ')
+        }
+        
+        setError(errorMessage)
+      }
+    } catch (err: any) {
+      console.log('=== REGISTER ERROR DEBUG ===')
+      console.log('Error object:', err)
+      console.log('Error message:', err.message)
+      console.log('Error response:', err.response)
+      console.log('Error response data:', err.response?.data)
+      console.log('==========================')
+      
+      // Handle network or other errors
+      let errorMessage = "Đăng ký thất bại. Vui lòng thử lại."
+      
+      console.error('Register error:', err)
+      
+      // Priority 1: Use the error message directly if it's from our API
+      if (err.message && !err.message.includes('API Error:')) {
+        errorMessage = err.message
+      }
+      // Priority 2: Check for detailed error response
+      else if (err.response && err.response.data) {
+        const errorData = err.response.data
+        
+        // Check if there's a message in the error response
+        if (errorData.message) {
+          errorMessage = errorData.message
+        }
+        
+        // Check if there are errors array in the error response
+        else if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+          errorMessage = errorData.errors.map(error => {
+            if (typeof error === 'object' && error.message) {
+              return error.message
+            }
+            return error.toString()
+          }).join('\n')
+        }
+      }
+      
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -48,8 +137,8 @@ export default function Register() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.logoContainer}>
           <Image source={{ uri: "https://via.placeholder.com/120" }} style={styles.logo} />
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join School Health Manager</Text>
+          <Text style={styles.title}>Parent Registration</Text>
+          <Text style={styles.subtitle}>Join School Health Manager as a Parent</Text>
         </View>
 
         <View style={styles.form}>
@@ -69,6 +158,17 @@ export default function Register() {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Phone</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your phone number"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
             />
           </View>
 
@@ -94,26 +194,37 @@ export default function Register() {
             />
           </View>
 
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Student Code</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter student code (e.g., HS001)"
+              value={studentCode}
+              onChangeText={setStudentCode}
+              autoCapitalize="characters"
+            />
+          </View>
+
           <View style={styles.roleSelector}>
-            <Text style={styles.label}>I am a:</Text>
+            <Text style={styles.label}>Relationship:</Text>
             <View style={styles.roleButtons}>
               <TouchableOpacity
-                style={[styles.roleButton, role === "parent" && styles.selectedRole]}
-                onPress={() => setRole("parent")}
+                style={[styles.roleButton, parentType === "father" && styles.selectedRole]}
+                onPress={() => setParentType("father")}
               >
-                <Text style={styles.roleText}>Parent</Text>
+                <Text style={styles.roleText}>Father</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.roleButton, role === "student" && styles.selectedRole]}
-                onPress={() => setRole("student")}
+                style={[styles.roleButton, parentType === "mother" && styles.selectedRole]}
+                onPress={() => setParentType("mother")}
               >
-                <Text style={styles.roleText}>Student</Text>
+                <Text style={styles.roleText}>Mother</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.roleButton, role === "nurse" && styles.selectedRole]}
-                onPress={() => setRole("nurse")}
+                style={[styles.roleButton, parentType === "guardian" && styles.selectedRole]}
+                onPress={() => setParentType("guardian")}
               >
-                <Text style={styles.roleText}>Nurse</Text>
+                <Text style={styles.roleText}>Guardian</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -123,12 +234,12 @@ export default function Register() {
             onPress={handleRegister}
             disabled={isLoading}
           >
-            <Text style={styles.buttonText}>{isLoading ? "Creating Account..." : "Register"}</Text>
+            <Text style={styles.buttonText}>{isLoading ? "Creating Account..." : "Register as Parent"}</Text>
           </TouchableOpacity>
 
           <View style={styles.loginContainer}>
             <Text style={styles.loginText}>Already have an account? </Text>
-            <Link href="/auth/login" asChild>
+            <Link href="/(tabs)/(auth)/login" asChild>
               <TouchableOpacity>
                 <Text style={styles.loginLink}>Login</Text>
               </TouchableOpacity>
