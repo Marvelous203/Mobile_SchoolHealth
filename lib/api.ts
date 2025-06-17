@@ -179,7 +179,57 @@ export interface GetUserProfileResponse {
     message: string
     data: UserProfile
 }
-
+export interface MedicineItem {
+    name: string
+    dosage: string
+    usageInstructions: string
+    quantity: number
+    timesPerDay: number
+    timeSlots: string[]
+    startDate: string
+    endDate: string
+    note: string
+    reason: string
+  }
+  
+  export interface CreateMedicineSubmissionRequest {
+    parentId: string
+    studentId: string
+    schoolNurseId: string
+    medicines: MedicineItem[]
+  }
+  
+  export interface CreateMedicineSubmissionResponse {
+    success: boolean
+    data?: {
+      id: string
+      status: string
+      createdAt: string
+    }
+    message?: string
+  }
+  export interface SchoolNurse {
+    _id: string
+    email: string
+    fullName: string
+    phone: string
+    role: string
+    studentIds: string[]
+    isDeleted: boolean
+    createdAt: string
+    updatedAt: string
+    __v: number
+  }
+  
+  export interface SchoolNurseSearchResponse {
+    pageData: SchoolNurse[]
+    pageInfo: {
+      pageNum: number
+      pageSize: number
+      totalItems: number
+      totalPages: number
+    }
+  }
 // API methods
 export const api = {
     // Authentication with real API
@@ -264,8 +314,50 @@ export const api = {
         });
     },
 
+    searchMedicineSubmissions: async (params: MedicineSubmissionSearchParams): Promise<MedicineSubmissionSearchResponse> => {
+      try {
+        const queryParams = new URLSearchParams()
+        
+        if (params.parentId) queryParams.append('parentId', params.parentId)
+        if (params.studentId) queryParams.append('studentId', params.studentId)
+        if (params.status) queryParams.append('status', params.status)
+        if (params.query) queryParams.append('query', params.query)
+        
+        const endpoint = `/medicine-submissions/search/${params.pageNum}/${params.pageSize}${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+        console.log('🔍 Searching medicine submissions:', endpoint)
+        
+        const response = await apiCall(endpoint, {
+          method: 'GET'
+        })
+        
+        console.log('💊 Medicine submissions search response:', response)
+        return response
+      } catch (error) {
+        console.error('❌ Search medicine submissions error:', error)
+        throw error
+      }
+    },
+
+    // Thêm method mới để lấy chi tiết medicine submission
+    getMedicineSubmissionById: async (submissionId: string): Promise<MedicineSubmissionDetailResponse> => {
+      try {
+        console.log('📋 Getting medicine submission detail for ID:', submissionId)
+        
+        const response = await apiCall(`/medicine-submissions/${submissionId}`, {
+          method: 'GET'
+        })
+        
+        console.log('💊 Medicine submission detail response:', response)
+        return response
+      } catch (error) {
+        console.error('❌ Get medicine submission detail error:', error)
+        throw error
+      }
+    },
+    
+    // Giữ lại method cũ để tương thích ngược
     getMedicineSubmissions: async () => {
-        return apiCall('/medicine/submissions');
+      return apiCall('/medicine/submissions')
     },
 
     // Nurse functions
@@ -309,23 +401,6 @@ export const api = {
         } catch (error) {
             console.error('❌ Get user profile error:', error);
             throw error; // Re-throw to preserve server error messages
-        }
-    },
-
-    // Get current user profile (using token)
-    getCurrentUserProfile: async (): Promise<GetUserProfileResponse> => {
-        try {
-            console.log('👤 Getting current user profile from token')
-            
-            const response = await apiCall('/users/me', {
-                method: 'GET'
-            });
-            
-            console.log('📋 Current user profile response:', response)
-            return response;
-        } catch (error) {
-            console.error('❌ Get current user profile error:', error);
-            throw error;
         }
     },
 
@@ -492,6 +567,137 @@ getVaccineEventById: async (eventId: string): Promise<VaccineEventDetailResponse
 },
 
 
-
+createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Promise<CreateMedicineSubmissionResponse> => {
+    try {
+      console.log('💊 Creating medicine submission:', request)
+      
+      const response = await apiCall('/medicine-submissions/create', {
+        method: 'POST',
+        body: JSON.stringify(request)
+      })
+      
+      console.log('✅ Medicine submission created:', response)
+      return response
+    } catch (error) {
+      console.error('❌ Create medicine submission error:', error)
+      throw error
+    }
+  },
+  searchSchoolNurses: async (pageNum: number = 1, pageSize: number = 10, query?: string): Promise<SchoolNurseSearchResponse> => {
+    try {
+      let endpoint = `/users/search/${pageNum}/${pageSize}?role=school-nurse`
+      if (query) {
+        endpoint += `&query=${encodeURIComponent(query)}`
+      }
+      
+      console.log('🔍 Searching school nurses:', endpoint)
+      
+      const response = await apiCall(endpoint, {
+        method: 'GET'
+      })
+      
+      console.log('👩‍⚕️ School nurses search response:', response)
+      return response
+    } catch (error) {
+      console.error('❌ Search school nurses error:', error)
+      throw error
+    }
+  },
 };
+
+
+// Thêm interfaces mới cho medicine submission
+
+
+// Thêm method mới vào object api
+export interface MedicineSubmissionSearchParams {
+  parentId?: string
+  studentId?: string
+  status?: 'pending' | 'approved' | 'completed'
+  query?: string
+  pageNum: number
+  pageSize: number
+}
+
+export interface MedicineSubmissionSearchResponse {
+  pageData: MedicineSubmission[]
+  pageInfo: {
+    pageNum: number
+    pageSize: number
+    totalItems: number
+    totalPages: number
+  }
+}
+
+// Cập nhật interface MedicineSubmission để phù hợp với API response
+export interface Medicine {
+  _id: string
+  name: string
+  dosage: string
+  usageInstructions: string
+  quantity: number
+  timesPerDay: number
+  timeSlots: string[]
+  startDate: string
+  endDate: string
+  note: string
+  reason: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MedicineSubmission {
+  _id: string
+  parentId: string
+  studentId: string
+  schoolNurseId: string
+  medicines: Medicine[]
+  status: "pending" | "approved" | "completed"
+  isDeleted: boolean
+  createdAt: string
+  updatedAt: string
+  __v: number
+}
+// Thêm interface mới cho medicine submission detail
+export interface MedicineSubmissionDetailResponse {
+  success: boolean
+  data: {
+    _id: string
+    parentId: {
+      _id: string
+      email: string
+      fullName: string
+      phone: string
+      role: string
+    }
+    studentId: any
+    schoolNurseId: {
+      _id: string
+      email: string
+      fullName: string
+      phone: string
+      role: string
+    }
+    medicines: {
+      name: string
+      dosage: string
+      usageInstructions: string
+      quantity: number
+      timesPerDay: number
+      timeSlots: string[]
+      startDate: string
+      endDate: string
+      note: string
+      reason: string
+      _id: string
+      createdAt: string
+      updatedAt: string
+    }[]
+    status: "pending" | "approved" | "completed"
+    isDeleted: boolean
+    createdAt: string
+    updatedAt: string
+    __v: number
+  }
+}
 

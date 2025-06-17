@@ -2,8 +2,9 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { router } from "expo-router"
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { jwtDecode } from "jwt-decode"
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { UserProfile } from "./api"
 
 // Get API URL from environment variables
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL
@@ -361,7 +362,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Update user state with fresh data
       setUser({
-        id: profileData.id,
+        id: profileData._id,
         email: profileData.email,
         role: profileData.role,
         name: profileData.fullName

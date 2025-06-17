@@ -2,7 +2,7 @@
 
 import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
-import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons"
+import { FontAwesome5, MaterialIcons } from "@expo/vector-icons"
 import { Link, useRouter } from "expo-router"
 import { useEffect, useState } from "react"
 import { ActivityIndicator, Alert, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
@@ -215,7 +215,7 @@ export default function ParentHome() {
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionCards}>
-            <Link href="/(tabs)/(parent)/medicines/submit" asChild>
+            <Link href="/(tabs)/(parent)/health/medicines/submit" asChild>
               <TouchableOpacity style={styles.actionCard}>
                 <FontAwesome5 name="pills" size={24} color="#1890ff" />
                 <Text style={styles.actionText}>Submit Medicine</Text>
@@ -239,13 +239,6 @@ export default function ParentHome() {
                 <Text style={styles.actionText}>Health Checkups</Text>
               </TouchableOpacity>
             </Link>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push('/(tabs)/(parent)/blogs')}
-            >
-              <Ionicons name="library-outline" size={24} color="#2196F3" />
-              <Text style={styles.actionText}>Blog Y Tế</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
