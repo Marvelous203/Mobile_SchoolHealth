@@ -2,8 +2,59 @@
 // Updated to use real API endpoints
 
 // Get API URL from environment variables
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { jwtDecode } from 'jwt-decode';
 import { getAuthHeaders } from './auth';
+import {
+    CreateHealthRecordRequest,
+    CreateHealthRecordResponse,
+    HealthRecordDetailResponse,
+    HealthRecordSearchParams,
+    HealthRecordSearchResponse,
+    MedicalEvent,
+    MedicalEventSearchParams,
+    MedicalEventSearchResponse,
+    MedicineSubmissionDetailResponse,
+    MedicineSubmissionSearchParams,
+    MedicineSubmissionSearchResponse
+} from './types';
+
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL
+
+// JWT payload interface for decoding token
+interface JWTPayload {
+  userId: string
+  email: string
+  role: string
+  exp: number
+  iat: number
+}
+
+// Helper function to get current user ID from stored token
+export const getCurrentUserId = async (): Promise<string | null> => {
+  try {
+    const token = await AsyncStorage.getItem('jwt_token')
+    if (!token) {
+      console.log('❌ No token found in storage')
+      return null
+    }
+    
+    const decoded = jwtDecode<JWTPayload>(token)
+    console.log('🔍 Decoded token for userId:', decoded)
+    
+    // Check if token is expired
+    const currentTime = Date.now() / 1000
+    if (decoded.exp <= currentTime) {
+      console.log('⏰ Token expired')
+      return null
+    }
+    
+    return decoded.userId || null
+  } catch (error) {
+    console.error('❌ Error getting current user ID:', error)
+    return null
+  }
+}
 
 // Helper function to make API calls
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
@@ -56,17 +107,7 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
   }
 };
 
-// Types
-export interface Student {
-    id: string
-    name: string
-    class: string
-    dob: string
-    allergies: string[]
-    chronicDiseases: string[]
-    vision: string
-    hearing: string
-}
+// Types (Student interface moved to bottom to avoid duplicates)
 
 export interface MedicineSubmission {
     id: string
@@ -162,14 +203,15 @@ export interface RegisterResponse {
 
 // User Profile interfaces
 export interface UserProfile {
-    id: string
+    _id: string
     email: string
     fullName: string
     phone: string
-    role: "admin" | "parent" | "student" | "nurse"
+    role:"parent" | "student" | "nurse"
     image?: string
     isDeleted?: boolean
     studentParents?: StudentParent[]
+    studentIds?: string[]
     createdAt?: string
     updatedAt?: string
 }
@@ -179,6 +221,8 @@ export interface GetUserProfileResponse {
     message: string
     data: UserProfile
 }
+
+
 export interface MedicineItem {
     name: string
     dosage: string
@@ -208,18 +252,7 @@ export interface MedicineItem {
     }
     message?: string
   }
-  export interface SchoolNurse {
-    _id: string
-    email: string
-    fullName: string
-    phone: string
-    role: string
-    studentIds: string[]
-    isDeleted: boolean
-    createdAt: string
-    updatedAt: string
-    __v: number
-  }
+  // SchoolNurse interface moved to bottom to avoid duplicates
   
   export interface SchoolNurseSearchResponse {
     pageData: SchoolNurse[]
@@ -518,22 +551,88 @@ export const api = {
     },
 
     // Comment methods
-// Thêm method này vào object api
-getCommentById: async (commentId: string): Promise<{ success: boolean; data: any; message?: string }> => {
-    try {
-        console.log('📝 Getting comment by ID:', commentId)
-        
-        const response = await apiCall(`/comments/${commentId}`, {
-            method: 'GET'
-        })
-        
-        console.log('📝 Comment response:', response)
-        return response
-    } catch (error) {
-        console.error('❌ Get comment by ID error:', error)
-        throw error
-    }
-},
+    createComment: async (request: CreateCommentRequest): Promise<CreateCommentResponse> => {
+        try {
+            console.log('💬 Creating comment:', request)
+            
+            const response = await apiCall('/comments/create', {
+                method: 'POST',
+                body: JSON.stringify(request)
+            })
+            
+            console.log('✅ Comment created:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Create comment error:', error)
+            throw error
+        }
+    },
+
+    getComments: async (blogId: string): Promise<GetCommentsResponse> => {
+        try {
+            console.log('📝 Getting comments for blog:', blogId)
+            
+            const response = await apiCall(`/comments/blog/${blogId}`, {
+                method: 'GET'
+            })
+            
+            console.log('💬 Comments response:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get comments error:', error)
+            throw error
+        }
+    },
+
+    getCommentById: async (commentId: string): Promise<{ success: boolean; data: any; message?: string }> => {
+        try {
+            console.log('📝 Getting comment by ID:', commentId)
+            
+            const response = await apiCall(`/comments/${commentId}`, {
+                method: 'GET'
+            })
+            
+            console.log('📝 Comment response:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get comment by ID error:', error)
+            throw error
+        }
+    },
+
+    // Vaccine Registration methods
+    getVaccineRegistrationById: async (registrationId: string): Promise<VaccineRegistrationDetailResponse> => {
+        try {
+            console.log('💉 Getting vaccine registration detail for ID:', registrationId)
+            
+            const response = await apiCall(`/vaccine-registration/${registrationId}`, {
+                method: 'GET'
+            })
+            
+            console.log('📋 Vaccine registration detail response:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get vaccine registration detail error:', error)
+            throw error
+        }
+    },
+
+    updateVaccineRegistrationStatus: async (registrationId: string, updateData: VaccineRegistrationUpdateRequest): Promise<VaccineRegistrationUpdateResponse> => {
+        try {
+            console.log('🔄 Updating vaccine registration status:', registrationId, updateData)
+            
+            const response = await apiCall(`/vaccine-registration/${registrationId}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify(updateData)
+            })
+            
+            console.log('✅ Vaccine registration status updated:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Update vaccine registration status error:', error)
+            throw error
+        }
+    },
 searchVaccineEvents: async (pageNum: number = 1, pageSize: number = 10): Promise<VaccineEventSearchResponse> => {
     try {
         console.log(`🔍 Searching vaccine events - Page: ${pageNum}, Size: ${pageSize}`)
@@ -550,7 +649,9 @@ searchVaccineEvents: async (pageNum: number = 1, pageSize: number = 10): Promise
     }
 },
 
-getVaccineEventById: async (eventId: string): Promise<VaccineEventDetailResponse> => {
+getVaccineEventById: async (eventId: string): Promise<VaccineEventDetailResponse
+
+> => {
     try {
         console.log('📋 Getting vaccine event detail for ID:', eventId)
         
@@ -603,101 +704,403 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
       throw error
     }
   },
+      // Link students to parent
+      linkStudents: async (studentParents: { studentCode: string; type: string }[]): Promise<any> => {
+        try {
+            console.log('Linking students to parent:', studentParents);
+            const response = await apiCall('/users/link-students', {
+                method: 'POST',
+                body: JSON.stringify({ studentParents })
+            });
+            console.log('Link students response:', response);
+            return response;
+        } catch (error) {
+            console.error('❌ Link students error:', error);
+            throw error;
+        }
+    },
+
+    // Health Records methods
+    searchHealthRecords: async (params: HealthRecordSearchParams): Promise<HealthRecordSearchResponse> => {
+        try {
+            console.log('🔍 Searching health records:', params)
+            
+            const queryParams = new URLSearchParams()
+            
+            if (params.query) queryParams.append('query', params.query)
+            if (params.studentId) queryParams.append('studentId', params.studentId)
+            if (params.schoolYear) queryParams.append('schoolYear', params.schoolYear)
+            
+            const endpoint = `/health-records/search/${params.pageNum}/${params.pageSize}${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+            console.log('🔍 Health records endpoint:', endpoint)
+            
+            const response = await apiCall(endpoint, {
+                method: 'GET'
+            })
+            
+            console.log('🏥 Health records search response:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Search health records error:', error)
+            throw error
+        }
+    },
+
+    createHealthRecord: async (healthRecordData: CreateHealthRecordRequest): Promise<CreateHealthRecordResponse> => {
+        try {
+            console.log('📝 Creating health record:', healthRecordData)
+            
+            const response = await apiCall('/health-records/create', {
+                method: 'POST',
+                body: JSON.stringify(healthRecordData)
+            })
+            
+            console.log('✅ Health record created successfully:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Create health record error:', error)
+            throw error
+        }
+    },
+
+    getHealthRecordById: async (recordId: string): Promise<HealthRecordDetailResponse> => {
+        try {
+            console.log('📋 Getting health record detail for ID:', recordId)
+            
+            const response = await apiCall(`/health-records/${recordId}`, {
+                method: 'GET'
+            })
+            
+            console.log('🏥 Health record detail response:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get health record detail error:', error)
+            throw error
+        }
+    },
+
+    // Medical Events methods
+    searchMedicalEvents: async (params: MedicalEventSearchParams): Promise<MedicalEventSearchResponse> => {
+        try {
+            // Get current user profile to extract studentIds
+            let finalParams = { ...params }
+            
+            // If no specific studentId is provided, get all studentIds from current user profile
+            if (!finalParams.userId) {
+                try {
+                    const token = await AsyncStorage.getItem('token')
+                    if (token) {
+                        const userProfileResponse = await apiCall('/users/profile', {
+                            method: 'GET',
+                            headers: {
+                                Authorization: `Bearer ${token}`
+                            }
+                        })
+                        
+                        console.log('👤 Current user profile for medical events:', userProfileResponse.data)
+                        
+                        if (userProfileResponse.data && userProfileResponse.data.studentIds && userProfileResponse.data.studentIds.length > 0) {
+                            // Use the first studentId as default (or you can modify this logic as needed)
+                            finalParams.userId = userProfileResponse.data.studentIds[0]
+                            console.log('🎯 Using studentId from profile for medical events:', finalParams.userId)
+                            console.log('📚 Available studentIds:', userProfileResponse.data.studentIds)
+                        }
+                    }
+                } catch (profileError) {
+                    console.warn('⚠️ Could not get user profile for studentIds:', profileError)
+                    // Fallback to original logic if profile fetch fails
+                    const currentUserId = await getCurrentUserId()
+                    if (currentUserId) {
+                        finalParams.userId = currentUserId
+                        console.log('🔑 Fallback: using current userId for medical events:', currentUserId)
+                    }
+                }
+            }
+            
+            // Try different endpoint format based on Swagger documentation
+            const queryParams = new URLSearchParams()
+            
+            if (finalParams.query) queryParams.append('query', finalParams.query)
+            if (finalParams.userId) queryParams.append('userId', finalParams.userId)
+            if (finalParams.isSerious !== undefined) queryParams.append('isSerious', finalParams.isSerious.toString())
+            
+            // Try format from Swagger: /medical-events/search with query params including pageNum and pageSize
+            const endpoint = `/medical-events/search?pageNum=${finalParams.pageNum}&pageSize=${finalParams.pageSize}${queryParams.toString() ? '&' + queryParams.toString() : ''}`
+            console.log('🔍 Searching medical events:', endpoint)
+            console.log('🌐 API_BASE_URL:', API_BASE_URL)
+            console.log('🔗 Full URL:', `${API_BASE_URL}${endpoint}`)
+            
+            const response = await apiCall(endpoint, {
+                method: 'GET'
+            })
+            
+            console.log('🚨 Medical events search response:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Search medical events error:', error)
+            throw error
+        }
+    },
+
+    getMedicalEventById: async (eventId: string): Promise<{ success: boolean; data: MedicalEvent; message?: string }> => {
+        try {
+            console.log('📋 Getting medical event detail for ID:', eventId)
+            
+            const response = await apiCall(`/medical-events/${eventId}`, {
+                method: 'GET'
+            })
+            
+            console.log('🚨 Medical event detail response:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get medical event detail error:', error)
+            throw error
+        }
+    },
+
+    // Medical Check Registration methods
+    getMedicalCheckRegistrationById: async (registrationId: string): Promise<MedicalCheckRegistrationDetailResponse> => {
+        try {
+            console.log('🏥 Getting medical check registration detail for ID:', registrationId)
+            
+            const response = await apiCall(`/medical-check-registration/${registrationId}`, {
+                method: 'GET'
+            })
+            
+            console.log('📋 Medical check registration detail response:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get medical check registration detail error:', error)
+            throw error
+        }
+    },
+
+    updateMedicalCheckRegistrationStatus: async (registrationId: string, updateData: MedicalCheckRegistrationUpdateRequest): Promise<MedicalCheckRegistrationUpdateResponse> => {
+        try {
+            console.log('🔄 Updating medical check registration status:', registrationId, updateData)
+            
+            const response = await apiCall(`/medical-check-registration/${registrationId}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify(updateData)
+            })
+            
+            console.log('✅ Medical check registration status updated:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Update medical check registration status error:', error)
+            throw error
+        }
+    },
+
 };
 
-
-// Thêm interfaces mới cho medicine submission
-
-
-// Thêm method mới vào object api
-export interface MedicineSubmissionSearchParams {
-  parentId?: string
-  studentId?: string
-  status?: 'pending' | 'approved' | 'completed'
-  query?: string
-  pageNum: number
-  pageSize: number
+// Comments interfaces
+export interface CreateCommentRequest {
+    content: string
+    blogId: string
+    parentId: string
 }
 
-export interface MedicineSubmissionSearchResponse {
-  pageData: MedicineSubmission[]
-  pageInfo: {
-    pageNum: number
-    pageSize: number
-    totalItems: number
-    totalPages: number
-  }
+export interface CreateCommentResponse {
+    success: boolean
+    data?: {
+        _id: string
+        content: string
+        blogId: string
+        parentId: string
+        createdAt: string
+    }
+    message?: string
 }
 
-// Cập nhật interface MedicineSubmission để phù hợp với API response
-export interface Medicine {
-  _id: string
-  name: string
-  dosage: string
-  usageInstructions: string
-  quantity: number
-  timesPerDay: number
-  timeSlots: string[]
-  startDate: string
-  endDate: string
-  note: string
-  reason: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface MedicineSubmission {
-  _id: string
-  parentId: string
-  studentId: string
-  schoolNurseId: string
-  medicines: Medicine[]
-  status: "pending" | "approved" | "completed"
-  isDeleted: boolean
-  createdAt: string
-  updatedAt: string
-  __v: number
-}
-// Thêm interface mới cho medicine submission detail
-export interface MedicineSubmissionDetailResponse {
-  success: boolean
-  data: {
+export interface Comment {
     _id: string
-    parentId: {
-      _id: string
-      email: string
-      fullName: string
-      phone: string
-      role: string
+    content: string
+    blogId: string
+    parentId: string
+    parent: {
+        _id: string
+        fullName: string
+        email: string
+        image?: string
     }
-    studentId: any
-    schoolNurseId: {
-      _id: string
-      email: string
-      fullName: string
-      phone: string
-      role: string
+    createdAt: string
+    updatedAt: string
+}
+
+export interface GetCommentsResponse {
+    success: boolean
+    data: Comment[]
+    message?: string
+}
+
+// Temporary interfaces for missing types
+interface BlogSearchParams {
+    query?: string
+    categoryId?: string
+    userId?: string
+    pageSize?: number
+    pageNum?: number
+}
+
+interface BlogSearchResponse {
+    pageData: any[]
+    pageInfo: {
+        pageNum: number
+        pageSize: number
+        totalItems: number
+        totalPages: number
     }
-    medicines: {
-      name: string
-      dosage: string
-      usageInstructions: string
-      quantity: number
-      timesPerDay: number
-      timeSlots: string[]
-      startDate: string
-      endDate: string
-      note: string
-      reason: string
-      _id: string
-      createdAt: string
-      updatedAt: string
-    }[]
-    status: "pending" | "approved" | "completed"
+}
+
+interface BlogDetailResponse {
+    success: boolean
+    data: any
+    message?: string
+}
+
+interface VaccineEventSearchResponse {
+    pageData: any[]
+    pageInfo: {
+        pageNum: number
+        pageSize: number
+        totalItems: number
+        totalPages: number
+    }
+}
+
+interface VaccineEventDetailResponse {
+    success: boolean
+    data: any
+    message?: string
+}
+
+// Vaccine Registration interfaces
+interface VaccineRegistrationDetailResponse {
+    success: boolean
+    data: {
+        _id: string
+        studentId: string
+        parentId: string
+        eventId: string
+        status: "pending" | "approved" | "rejected"
+        studentName: string
+        parentName: string
+        consentDate?: string
+        notes?: string
+        createdAt: string
+        updatedAt: string
+    }
+    message?: string
+}
+
+interface VaccineRegistrationUpdateRequest {
+    status: "approved" | "rejected"
+    consentDate: string
+    notes?: string
+}
+
+interface VaccineRegistrationUpdateResponse {
+    success: boolean
+    data?: any
+    message?: string
+}
+
+// Medical Check Registration interfaces
+interface MedicalCheckRegistrationDetailResponse {
+    success: boolean
+    data: {
+        _id: string
+        studentId: string
+        parentId: string
+        eventId: string
+        status: "pending" | "approved" | "rejected"
+        studentName: string
+        parentName: string
+        consentDate?: string
+        cancellationReason?: string
+        notes?: string
+        createdAt: string
+        updatedAt: string
+    }
+    message?: string
+}
+
+interface MedicalCheckRegistrationUpdateRequest {
+    status: "approved" | "rejected"
+    consentDate?: string
+    cancellationReason?: string
+    notes?: string
+}
+
+interface MedicalCheckRegistrationUpdateResponse {
+    success: boolean
+    data?: any
+    message?: string
+}
+
+// Medical Events interfaces
+export interface Medicine {
+    _id: string
+    name: string
+    description: string
+    dosage: string
+    sideEffects: string
     isDeleted: boolean
     createdAt: string
     updatedAt: string
     __v: number
-  }
 }
+
+export interface SchoolNurse {
+    _id: string
+    password: string
+    email: string
+    fullName: string
+    phone: string
+    role: string
+    studentIds: string[]
+    isDeleted: boolean
+    createdAt: string
+    updatedAt: string
+    __v: number
+    image?: string
+}
+
+export interface Student {
+    _id: string
+    fullName: string
+    isDeleted: boolean
+    gender: 'male' | 'female'
+    dob: string
+    classId: string
+    avatar: string
+    studentCode: string
+    parents: {
+        userId: string
+        type: 'father' | 'mother' | 'guardian'
+    }[]
+    createdAt: string
+    updatedAt: string
+    __v: number
+}
+
+export interface MedicalSupply {
+    _id: string
+    name: string
+    description: string
+    quantity: number
+    unit: string
+    expiryDate: string
+    supplier: string
+    isDeleted: boolean
+    createdAt: string
+    updatedAt: string
+    __v: number
+}
+
+// Remove duplicate interfaces - import from types.ts instead
+
+
+
 

@@ -97,15 +97,6 @@ interface HealthRecords {
   vaccinationHistory: string[]
 
 }
-interface MedicineSubmission {
- parentId: string,
-  studentId: string,
-  medicineId: string,
-  dosage: string,
-  usageInstructions: string,
-  startDate: string,
-  endDate: string
-}
 interface MedicalSupplies {
   id: string
   name: string
@@ -115,18 +106,110 @@ interface MedicalSupplies {
   createdAt: string
   updatedAt: string
 }
-interface MedicalEvents {
+// Updated Medical Events interfaces
+export interface MedicalEventStudent {
+  _id: string
+  fullName: string
+  isDeleted: boolean
+  gender: 'male' | 'female'
+  dob: string
+  classId: string
+  avatar: string
+  studentCode: string
+  parents: {
+    userId: string
+    type: 'father' | 'mother'
+  }[]
+  createdAt: string
+  updatedAt: string
+  __v: number
   id: string
+}
+
+export interface MedicalEventSchoolNurse {
+  _id: string
+  password: string
+  email: string
+  fullName: string
+  phone: string
+  role: 'school-nurse'
+  studentIds: string[]
+  isDeleted: boolean
+  createdAt: string
+  updatedAt: string
+  __v: number
+  image?: string
+}
+
+export interface MedicalEventMedicine {
+  _id: string
+  name: string
+  description: string
+  dosage: string
+  sideEffects: string
+  isDeleted: boolean
+  createdAt: string
+  updatedAt: string
+  __v: number
+}
+
+export interface MedicalEventSupply {
+  _id: string
+  name: string
+  description: string
+  quantity: number
+  unit: string
+  expiryDate: string
+  supplier: string
+  isDeleted: boolean
+  createdAt: string
+  updatedAt: string
+  __v: number
+}
+
+export interface MedicalEvent {
+  _id: string
   studentId: string
+  schoolNurseId: string
   eventName: string
   description: string
   actionTaken: string
   medicinesId: string[]
   medicalSuppliesId: string[]
-  status?: string
+  isSerious: boolean
   notes: string
   createdAt: string
   updatedAt: string
+  __v: number
+  student: MedicalEventStudent
+  schoolNurse: MedicalEventSchoolNurse
+  medicines: MedicalEventMedicine[]
+  medicalSupplies: MedicalEventSupply[]
+  id: string
+}
+
+export interface MedicalEventSearchParams {
+  query?: string
+  userId?: string
+  isSerious?: boolean
+  pageNum: number
+  pageSize: number
+}
+
+export interface MedicalEventSearchResponse {
+  pageData: MedicalEvent[]
+  pageInfo: {
+    pageNum: number
+    pageSize: number
+    totalItems: number
+    totalPages: number
+  }
+}
+
+export interface MedicalEventDetailResponse {
+  success: boolean
+  data: MedicalEvent
+  message?: string
 }
 interface VaccineEvents {
  id: string
@@ -163,4 +246,165 @@ interface MecicalCheckEvents {
   id: string
   gradeId: string
   eventName: string
+}
+// Health Records interfaces
+export interface HealthRecord {
+  _id: string
+  studentId: string
+  studentName: string
+  chronicDiseases: string[]
+  allergies: string[]
+  pastTreatments: string[]
+  vision: string
+  hearing: string
+  vaccinationHistory: string[]
+  schoolYear: string
+  createdAt: string
+  updatedAt: string
+  __v: number
+}
+
+export interface HealthRecordSearchParams {
+  query?: string
+  studentId?: string
+  schoolYear?: string
+  pageNum: number
+  pageSize: number
+}
+
+export interface HealthRecordSearchResponse {
+  pageData: HealthRecord[]
+  pageInfo: {
+      pageNum: number
+      pageSize: number
+      totalItems: number
+      totalPages: number
+  }
+}
+
+export interface HealthRecordDetailResponse {
+  success: boolean
+  data: HealthRecord
+  message?: string
+}
+
+export interface CreateHealthRecordRequest {
+    studentId: string
+    chronicDiseases: string[]
+    allergies: string[]
+    pastTreatments: string[]
+    vision: string
+    hearing: string
+    vaccinationHistory: string[]
+    schoolYear: string
+}
+
+export interface CreateHealthRecordResponse {
+    success: boolean
+    data?: {
+        _id: string
+        studentId: string
+        studentName: string
+        chronicDiseases: string[]
+        allergies: string[]
+        pastTreatments: string[]
+        vision: string
+        hearing: string
+        vaccinationHistory: string[]
+        schoolYear: string
+        createdAt: string
+        updatedAt: string
+        __v: number
+    }
+    message?: string
+}
+export interface MedicineSubmission {
+  _id: string
+  parentId: string
+  studentId: string
+  schoolNurseId: string
+  medicines: Medicine[]
+  status: "pending" | "approved" | "completed"
+  isDeleted: boolean
+  createdAt: string
+  updatedAt: string
+  __v: number
+}
+// Thêm interface mới cho medicine submission detail
+export interface MedicineSubmissionDetailResponse {
+  success: boolean
+  data: {
+    _id: string
+    parentId: {
+      _id: string
+      email: string
+      fullName: string
+      phone: string
+      role: string
+    }
+    studentId: any
+    schoolNurseId: {
+      _id: string
+      email: string
+      fullName: string
+      phone: string
+      role: string
+    }
+    medicines: {
+      name: string
+      dosage: string
+      usageInstructions: string
+      quantity: number
+      timesPerDay: number
+      timeSlots: string[]
+      startDate: string
+      endDate: string
+      note: string
+      reason: string
+      _id: string
+      createdAt: string
+      updatedAt: string
+    }[]
+    status: "pending" | "approved" | "completed"
+    isDeleted: boolean
+    createdAt: string
+    updatedAt: string
+    __v: number
+  }
+}
+// Thêm method mới vào object api
+export interface MedicineSubmissionSearchParams {
+  parentId?: string
+  studentId?: string
+  status?: 'pending' | 'approved' | 'completed'
+  query?: string
+  pageNum: number
+  pageSize: number
+}
+
+export interface MedicineSubmissionSearchResponse {
+  pageData: MedicineSubmission[]
+  pageInfo: {
+    pageNum: number
+    pageSize: number
+    totalItems: number
+    totalPages: number
+  }
+}
+
+// Cập nhật interface MedicineSubmission để phù hợp với API response
+export interface Medicine {
+  _id: string
+  name: string
+  dosage: string
+  usageInstructions: string
+  quantity: number
+  timesPerDay: number
+  timeSlots: string[]
+  startDate: string
+  endDate: string
+  note: string
+  reason: string
+  createdAt: string
+  updatedAt: string
 }

@@ -1,11 +1,11 @@
 "use client"
 
+import { authApi, type RegisterRequest } from "@/lib/auth"
 import { Link, router } from "expo-router"
 import { useState } from "react"
 import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { ScrollView, TextInput } from "react-native-gesture-handler"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { authApi, type RegisterRequest, type StudentParent } from "@/lib/auth"
 
 export default function Register() {
   const [name, setName] = useState("")
@@ -60,7 +60,7 @@ export default function Register() {
       console.log('Sending registration data:', JSON.stringify(registerData, null, 2))
 
       // Call register API
-      const response = await authApi.register(registrationData)
+      const response = await authApi.register(registerData)
       
       if (response.success) {
         Alert.alert(

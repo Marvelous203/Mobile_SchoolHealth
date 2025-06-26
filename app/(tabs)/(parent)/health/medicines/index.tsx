@@ -4,15 +4,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import {
-    ActivityIndicator,
-    Alert,
-    RefreshControl,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native'
 
 export default function MedicinesScreen() {
@@ -29,27 +29,17 @@ export default function MedicinesScreen() {
 
   const loadCurrentUser = async () => {
     try {
-      // Thử lấy từ AsyncStorage trước
-      const userDataString = await AsyncStorage.getItem('userData')
-      if (userDataString) {
-        const userData = JSON.parse(userDataString)
-        console.log('User data from AsyncStorage:', userData)
-        
-        // Kiểm tra xem có phải là dữ liệu hợp lệ không
-        if (userData && userData._id && userData._id.length === 24) {
-          setCurrentUser(userData)
-          return userData
-        }
-      }
+      // Xóa dữ liệu cũ trong AsyncStorage để đảm bảo lấy dữ liệu mới
+      await AsyncStorage.removeItem('userData')
       
-      // Nếu không có hoặc dữ liệu không hợp lệ, gọi API
+      // Gọi API để lấy dữ liệu mới
       console.log('Fetching current user profile from API...')
-      const response = await api.getCurrentUser() // Sử dụng getCurrentUser thay vì getUserProfile
+      const response = await api.getCurrentUser()
       
       if (response && response.success && response.data) {
-        console.log('Current user profile response:', response)
+        console.log('✅ Parent profile loaded:', response.data)
         
-        // Lưu dữ liệu thật vào AsyncStorage
+        // Lưu dữ liệu mới vào AsyncStorage
         await AsyncStorage.setItem('userData', JSON.stringify(response.data))
         setCurrentUser(response.data)
         return response.data
@@ -69,7 +59,7 @@ export default function MedicinesScreen() {
         setLoading(true)
       }
 
-      const user = currentUser || await loadCurrentUser()
+      const user = await loadCurrentUser()
       console.log('User for API call:', user)
       
       if (!user || !user._id) {

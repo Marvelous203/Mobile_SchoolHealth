@@ -8,6 +8,13 @@
     "scheme": "schoolmedical",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "linking": {
+      "prefixes": [
+        "schoolmedical://",
+        "https://schoolmedical.app",
+        "http://localhost:3000"
+      ]
+    },
     "ios": {
       "supportsTablet": true
     },

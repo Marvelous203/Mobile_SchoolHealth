@@ -116,7 +116,7 @@ export default function BlogsScreen() {
   const renderBlogItem = ({ item }: { item: ApiBlog }) => (
     <TouchableOpacity 
       style={styles.blogCard}
-      onPress={() => router.push(`/(tabs)/(parent)/blog-detail?id=${item._id}`)}
+      onPress={() => router.push(`/(tabs)/(parent)/blogs/${item._id}`)}
     >
       <View style={styles.blogHeader}>
         <Text style={styles.blogTitle} numberOfLines={2}>{item.title}</Text>

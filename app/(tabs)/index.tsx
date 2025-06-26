@@ -1,26 +1,22 @@
-"use client"
+"use client";
 
-import { useAuth } from "@/lib/auth"
-import { Redirect } from "expo-router"
+import { useAuth } from "@/lib/auth";
+import { Redirect } from "expo-router";
 
 export default function Index() {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading } = useAuth();
 
   if (isLoading) {
-    return null
+    return null;
   }
 
   if (!user) {
-    return <Redirect href="/(tabs)/(auth)/login" />
+    return <Redirect href="/(tabs)/(auth)/login" />;
   }
 
   if (user.role === "parent") {
-    return <Redirect href="/(tabs)/(parent)/home" />
-  } else if (user.role === "student") {
-    return <Redirect href="/(tabs)/(student)/home" />
-  } else if (user.role === "nurse") {
-    return <Redirect href="/(tabs)/(nurse)/home" />
+    return <Redirect href="/(tabs)/(parent)/home" />;
   }
 
-  return <Redirect href="/(tabs)/(auth)/login" />
+  return <Redirect href="/(tabs)/(auth)/login" />;
 }
