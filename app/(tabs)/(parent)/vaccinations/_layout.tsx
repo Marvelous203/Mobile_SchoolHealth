@@ -1,4 +1,4 @@
-import { Stack } from "expo-router"
+import { Stack } from "expo-router";
 
 export default function VaccinationsLayout() {
   return (
@@ -32,6 +32,13 @@ export default function VaccinationsLayout() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="registration"
+        options={{
+          title: "Đăng ký tiêm chủng",
+          headerShown: false,
+        }}
+      />
     </Stack>
-  )
+  );
 }

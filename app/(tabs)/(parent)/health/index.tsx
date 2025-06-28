@@ -36,15 +36,15 @@ export default function HealthScreen() {
       description: "Đặt lịch và xem kết quả khám sức khỏe",
       icon: "stethoscope",
       color: "#1890ff",
-      route: "/(tabs)/(parent)/health/checkups",
+      route: "/(tabs)/(parent)/checkups",
     },
     {
       id: "vaccinations",
       title: "Tiêm chủng",
-      description: "Lịch tiêm chủng và đồng ý tiêm",
+      description: "Đăng ký tham gia tiêm chủng",
       icon: "syringe",
       color: "#52c41a",
-      route: "/(tabs)/(parent)/health/vaccinations",
+      route: "/(tabs)/(parent)/vaccinations/registration",
     },
     {
       id: "medicines",
@@ -157,26 +157,4 @@ const styles = StyleSheet.create({
   },
 });
 
-const services = [
-  {
-    title: "Khám sức khỏe",
-    description: "Đăng ký và theo dõi lịch khám sức khỏe định kỳ",
-    icon: "medical",
-    color: "#4CAF50",
-    route: "/health/checkups",
-  },
-  {
-    title: "Tiêm chủng",
-    description: "Quản lý lịch tiêm chủng và đồng ý tiêm chủng",
-    icon: "medical",
-    color: "#2196F3",
-    route: "/vaccinations",
-  },
-  {
-    title: "Thuốc men",
-    description: "Tạo đơn thuốc và theo dõi việc uống thuốc",
-    icon: "medical",
-    color: "#FF9800",
-    route: "/health/medicines", // Cập nhật route này
-  },
-];
+// Removed duplicate services array

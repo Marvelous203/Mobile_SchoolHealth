@@ -5,16 +5,8 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "schoolmedical",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "linking": {
-      "prefixes": [
-        "schoolmedical://",
-        "https://schoolmedical.app",
-        "http://localhost:3000"
-      ]
-    },
     "ios": {
       "supportsTablet": true
     },
@@ -23,7 +15,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.acenhox01.SchoolMedical"
     },
     "web": {
       "bundler": "metro",

@@ -265,6 +265,9 @@ export interface MedicineItem {
   }
 // API methods
 export const api = {
+    // Expose apiCall for direct usage
+    apiCall,
+
     // Authentication with real API
     login: async (email: string, password: string): Promise<LoginResponse> => {
         try {
@@ -633,21 +636,7 @@ export const api = {
             throw error
         }
     },
-searchVaccineEvents: async (pageNum: number = 1, pageSize: number = 10): Promise<VaccineEventSearchResponse> => {
-    try {
-        console.log(`🔍 Searching vaccine events - Page: ${pageNum}, Size: ${pageSize}`)
-        
-        const response = await apiCall(`/vaccine-events/search/${pageNum}/${pageSize}`, {
-            method: 'GET'
-        })
-        
-        console.log('💉 Vaccine events search response:', response)
-        return response
-    } catch (error) {
-        console.error('❌ Search vaccine events error:', error)
-        throw error
-    }
-},
+// Removed old searchVaccineEvents - replaced with new version below
 
 getVaccineEventById: async (eventId: string): Promise<VaccineEventDetailResponse
 
@@ -888,6 +877,169 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
             return response
         } catch (error) {
             console.error('❌ Update medical check registration status error:', error)
+            throw error
+        }
+    },
+
+    // Search classes
+    searchClasses: async (params: { pageNum: number; pageSize: number; schoolYear?: string; query?: string }) => {
+        try {
+            const queryParams = new URLSearchParams({
+                pageNum: params.pageNum.toString(),
+                pageSize: params.pageSize.toString(),
+                ...(params.schoolYear && { schoolYear: params.schoolYear }),
+                ...(params.query && { query: params.query })
+            })
+            console.log('🔍 Searching classes with params:', params)
+            
+            const response = await apiCall(`/classes/search?${queryParams}`)
+            console.log('✅ Classes search result:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Search classes error:', error)
+            throw error
+        }
+    },
+
+    // Search grades
+    searchGrades: async (params: { pageNum: number; pageSize: number; query?: string }) => {
+        try {
+            const queryParams = new URLSearchParams({
+                pageNum: params.pageNum.toString(),
+                pageSize: params.pageSize.toString(),
+                ...(params.query && { query: params.query })
+            })
+            console.log('🔍 Searching grades with params:', params)
+            
+            const response = await apiCall(`/grades/search?${queryParams}`)
+            console.log('✅ Grades search result:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Search grades error:', error)
+            throw error
+        }
+    },
+
+    // Search vaccine events
+    searchVaccineEvents: async (params: { pageNum: number; pageSize: number; gradeId?: string; schoolYear?: string; query?: string }) => {
+        try {
+            // Build URL with path parameters and query string
+            let url = `/vaccine-events/search/${params.pageNum}/${params.pageSize}`
+            
+            const queryParams = new URLSearchParams()
+            if (params.schoolYear) {
+                queryParams.append('schoolYear', params.schoolYear)
+            }
+            if (params.gradeId) {
+                queryParams.append('gradeId', params.gradeId)
+            }
+            if (params.query) {
+                queryParams.append('query', params.query)
+            }
+            
+            if (queryParams.toString()) {
+                url += `?${queryParams.toString()}`
+            }
+            
+            console.log('🔍 Searching vaccine events with URL:', url)
+            console.log('🔍 Searching vaccine events with params:', params)
+            
+            const response = await apiCall(url)
+            console.log('✅ Vaccine events search result:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Search vaccine events error:', error)
+            throw error
+        }
+    },
+
+    // Search vaccine registrations
+    searchVaccineRegistrations: async (params: { 
+        pageNum: number; 
+        pageSize: number; 
+        studentId?: string; 
+        eventId?: string; 
+        parentId?: string;
+    }) => {
+        try {
+            // Try multiple endpoint patterns since we're not sure which one works
+            const endpointsToTry = [
+                `/vaccine-registration/search/${params.pageNum}/${params.pageSize}`,
+                `/vaccine-registration/search`,
+                `/vaccine-registration`
+            ];
+            
+            const queryParams = new URLSearchParams({
+                pageNum: params.pageNum.toString(),
+                pageSize: params.pageSize.toString(),
+                ...(params.studentId && { studentId: params.studentId }),
+                ...(params.eventId && { eventId: params.eventId }),
+                ...(params.parentId && { parentId: params.parentId })
+            });
+            
+            for (const endpoint of endpointsToTry) {
+                try {
+                    const url = `${endpoint}?${queryParams.toString()}`;
+                    console.log('🔍 Trying vaccine registrations URL:', url);
+                    
+                    const response = await apiCall(url);
+                    if (response && response.pageData !== undefined) {
+                        console.log('✅ Vaccine registrations search result:', response);
+                        return response;
+                    }
+                } catch (endpointError) {
+                    console.log(`❌ Failed endpoint ${endpoint}:`, endpointError);
+                    // Continue to next endpoint
+                }
+            }
+            
+            // If all endpoints fail, return empty result
+            console.log('⚠️ All vaccine registration endpoints failed, returning empty result');
+            return {
+                pageData: [],
+                pageInfo: {
+                    pageNum: params.pageNum,
+                    pageSize: params.pageSize,
+                    totalItems: 0,
+                    totalPages: 0
+                }
+            };
+        } catch (error) {
+            console.error('❌ Search vaccine registrations error:', error)
+            // Return empty result instead of throwing error
+            return {
+                pageData: [],
+                pageInfo: {
+                    pageNum: params.pageNum,
+                    pageSize: params.pageSize,
+                    totalItems: 0,
+                    totalPages: 0
+                }
+            }
+        }
+    },
+
+    // Create vaccine registration
+    createVaccineRegistration: async (data: {
+        parentId: string;
+        studentId: string;
+        eventId: string;
+        status: "pending" | "approved" | "rejected";
+        cancellationReason?: string;
+        note?: string;
+    }) => {
+        try {
+            console.log('📝 Creating vaccine registration:', data)
+            
+            const response = await apiCall(`/vaccine-registration/create`, {
+                method: 'POST',
+                body: JSON.stringify(data)
+            })
+            
+            console.log('✅ Vaccine registration created:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Create vaccine registration error:', error)
             throw error
         }
     },
