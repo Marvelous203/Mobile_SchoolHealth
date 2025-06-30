@@ -1,3 +1,5 @@
+import { api, Student } from "@/lib/api";
+import { HealthRecord } from "@/lib/types";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -12,8 +14,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { api, Student } from "../../../../lib/api";
-import { HealthRecord } from "../../../../lib/types";
 
 export default function HealthRecordDetailScreen() {
   const router = useRouter();

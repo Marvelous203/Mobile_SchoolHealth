@@ -21,13 +21,18 @@ const { width } = Dimensions.get("window");
 // Type definitions
 interface VaccineEvent {
   _id: string;
-  title: string;
+  eventName: string;
+  gradeId: string;
+  description: string;
   vaccineName: string;
   location: string;
-  startDate: string;
-  endDate: string;
-  registrationDeadline: string;
-  status: "upcoming" | "ongoing" | "completed" | "cancelled";
+  startRegistrationDate: string;
+  endRegistrationDate: string;
+  eventDate: string;
+  schoolYear: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 }
 
 interface VaccinationSession {
@@ -158,8 +163,25 @@ export default function VaccinationsScreen() {
     loadData();
   }, [selectedSchoolYear]); // Reload when school year changes
 
-  // Helper functions
-  const getStatusColor = (status: VaccineEvent["status"]): string => {
+  // Helper functions - Calculate status based on dates
+  const getEventStatus = (event: VaccineEvent): string => {
+    const now = new Date();
+    const startReg = new Date(event.startRegistrationDate);
+    const endReg = new Date(event.endRegistrationDate);
+    const eventDate = new Date(event.eventDate);
+
+    if (now > eventDate) {
+      return "completed";
+    } else if (now >= startReg && now <= endReg) {
+      return "ongoing";
+    } else if (now < startReg) {
+      return "upcoming";
+    } else {
+      return "closed";
+    }
+  };
+
+  const getStatusColor = (status: string): string => {
     switch (status) {
       case "upcoming":
         return "#4A90E2";
@@ -167,14 +189,14 @@ export default function VaccinationsScreen() {
         return "#7ED321";
       case "completed":
         return "#9B9B9B";
-      case "cancelled":
+      case "closed":
         return "#D0021B";
       default:
         return "#F5A623";
     }
   };
 
-  const getStatusBgColor = (status: VaccineEvent["status"]): string => {
+  const getStatusBgColor = (status: string): string => {
     switch (status) {
       case "upcoming":
         return "#E8F4FD";
@@ -182,23 +204,23 @@ export default function VaccinationsScreen() {
         return "#F0FDF4";
       case "completed":
         return "#F5F5F5";
-      case "cancelled":
+      case "closed":
         return "#FEF2F2";
       default:
         return "#FFFBEB";
     }
   };
 
-  const getStatusText = (status: VaccineEvent["status"]): string => {
+  const getStatusText = (status: string): string => {
     switch (status) {
       case "upcoming":
-        return "Sắp diễn ra";
+        return "Sắp mở đăng ký";
       case "ongoing":
-        return "Đang diễn ra";
+        return "Đang mở đăng ký";
       case "completed":
         return "Đã hoàn thành";
-      case "cancelled":
-        return "Đã hủy";
+      case "closed":
+        return "Đã đóng đăng ký";
       default:
         return "Không xác định";
     }
@@ -266,11 +288,14 @@ export default function VaccinationsScreen() {
 
   // Render functions
   const renderVaccineEventItem = ({ item }: { item: VaccineEvent }) => {
+    const eventStatus = getEventStatus(item);
+    const isRegistrationOpen = eventStatus === "ongoing";
+
     return (
       <TouchableOpacity
         style={[
           styles.modernCard,
-          { borderLeftColor: getStatusColor(item.status) },
+          { borderLeftColor: getStatusColor(eventStatus) },
         ]}
         onPress={() => handleEventPress(item._id)}
         activeOpacity={0.8}
@@ -280,38 +305,44 @@ export default function VaccinationsScreen() {
             <View
               style={[
                 styles.vaccineIcon,
-                { backgroundColor: getStatusBgColor(item.status) },
+                { backgroundColor: getStatusBgColor(eventStatus) },
               ]}
             >
               <Ionicons
                 name="medical"
                 size={24}
-                color={getStatusColor(item.status)}
+                color={getStatusColor(eventStatus)}
               />
             </View>
             <View
               style={[
                 styles.statusContainer,
-                { backgroundColor: getStatusBgColor(item.status) },
+                { backgroundColor: getStatusBgColor(eventStatus) },
               ]}
             >
               <Text
                 style={[
                   styles.statusLabel,
-                  { color: getStatusColor(item.status) },
+                  { color: getStatusColor(eventStatus) },
                 ]}
               >
-                {getStatusText(item.status)}
+                {getStatusText(eventStatus)}
               </Text>
             </View>
           </View>
 
           <Text style={styles.eventTitle} numberOfLines={2}>
-            {item.title}
+            {item.eventName}
           </Text>
           <Text style={styles.vaccineName} numberOfLines={1}>
             💉 {item.vaccineName}
           </Text>
+
+          {item.description && (
+            <Text style={styles.eventDescription} numberOfLines={2}>
+              {item.description}
+            </Text>
+          )}
 
           <View style={styles.eventInfo}>
             <View style={styles.infoRow}>
@@ -321,36 +352,38 @@ export default function VaccinationsScreen() {
               </Text>
             </View>
 
-            <View style={styles.dateContainer}>
-              <View style={styles.dateBox}>
-                <Text style={styles.dateLabel}>Bắt đầu</Text>
-                <Text style={styles.dateValue}>
-                  {formatDate(item.startDate)}
-                </Text>
-                <Text style={styles.timeValue}>
-                  {formatTime(item.startDate)}
-                </Text>
-              </View>
-              <View style={styles.dateSeparator} />
-              <View style={styles.dateBox}>
-                <Text style={styles.dateLabel}>Kết thúc</Text>
-                <Text style={styles.dateValue}>{formatDate(item.endDate)}</Text>
-                <Text style={styles.timeValue}>{formatTime(item.endDate)}</Text>
-              </View>
+            <View style={styles.infoRow}>
+              <Ionicons name="calendar-outline" size={16} color="#666" />
+              <Text style={styles.infoText}>
+                Ngày tiêm: {formatDate(item.eventDate)}
+              </Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Ionicons name="time-outline" size={16} color="#666" />
+              <Text style={styles.infoText}>
+                Đăng ký: {formatDate(item.startRegistrationDate)} -{" "}
+                {formatDate(item.endRegistrationDate)}
+              </Text>
             </View>
           </View>
 
           <View style={styles.cardFooter}>
-            <View style={styles.deadlineInfo}>
-              <Ionicons name="time-outline" size={14} color="#D0021B" />
-              <Text style={styles.deadlineText}>
-                Hạn ĐK: {formatDate(item.registrationDeadline)}
-              </Text>
-            </View>
+            {isRegistrationOpen && (
+              <TouchableOpacity
+                style={styles.registerEventButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleRegisterPress();
+                }}
+              >
+                <Text style={styles.registerEventButtonText}>Đăng ký</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[
                 styles.detailButton,
-                { backgroundColor: getStatusColor(item.status) },
+                { backgroundColor: getStatusColor(eventStatus) },
               ]}
             >
               <Text style={styles.detailButtonText}>Chi tiết</Text>
@@ -714,7 +747,13 @@ const styles = StyleSheet.create({
   vaccineName: {
     fontSize: 14,
     color: "#7f8c8d",
+    marginBottom: 8,
+  },
+  eventDescription: {
+    fontSize: 13,
+    color: "#95a5a6",
     marginBottom: 16,
+    lineHeight: 18,
   },
   eventInfo: {
     marginBottom: 16,
@@ -766,6 +805,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  registerEventButton: {
+    backgroundColor: "#52c41a",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  registerEventButtonText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
   deadlineInfo: {
     flexDirection: "row",

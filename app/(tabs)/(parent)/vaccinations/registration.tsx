@@ -40,7 +40,7 @@ interface Class {
 
 interface VaccineEvent {
   _id: string;
-  title: string;
+  eventName: string;
   gradeId: string;
   description: string;
   vaccineName: string;
@@ -48,8 +48,10 @@ interface VaccineEvent {
   startRegistrationDate: string;
   endRegistrationDate: string;
   eventDate: string;
-  status: string;
   schoolYear: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 }
 
 interface Student {
@@ -65,6 +67,7 @@ interface VaccineRegistration {
   eventId: string;
   status: "pending" | "approved" | "rejected";
   registrationDate: string;
+  schoolYear: string;
   consentDate?: string;
   cancellationReason?: string;
   notes?: string;
@@ -365,18 +368,19 @@ export default function VaccineRegistrationPage() {
 
     setIsProcessing(true);
 
-    try {
-      const registrationData = {
-        parentId: currentUserId,
-        studentId: selectedStudent._id,
-        eventId: selectedEvent._id,
-        status: consent ? ("pending" as const) : ("rejected" as const),
-        note: consent
-          ? "Đồng ý đăng ký tiêm chủng từ ứng dụng di động"
-          : rejectionReason,
-        cancellationReason: consent ? undefined : rejectionReason,
-      };
+    const registrationData = {
+      parentId: currentUserId,
+      studentId: selectedStudent._id,
+      eventId: selectedEvent._id,
+      status: consent ? ("pending" as const) : ("rejected" as const),
+      schoolYear: selectedSchoolYear,
+      note: consent
+        ? "Đồng ý đăng ký tiêm chủng từ ứng dụng di động"
+        : rejectionReason,
+      cancellationReason: consent ? undefined : rejectionReason,
+    };
 
+    try {
       const response = await api.createVaccineRegistration(registrationData);
       console.log("✅ Registration created:", response);
 
@@ -388,6 +392,7 @@ export default function VaccineRegistrationPage() {
         eventId: selectedEvent._id,
         status: consent ? "pending" : "rejected",
         registrationDate: new Date().toISOString(),
+        schoolYear: selectedSchoolYear,
         notes: registrationData.note,
         cancellationReason: registrationData.cancellationReason,
       };
@@ -436,6 +441,7 @@ export default function VaccineRegistrationPage() {
           eventId: selectedEvent._id,
           status: consent ? "pending" : "rejected",
           registrationDate: new Date().toISOString(),
+          schoolYear: selectedSchoolYear,
           notes: registrationData.note,
           cancellationReason: registrationData.cancellationReason,
         };
@@ -612,7 +618,7 @@ export default function VaccineRegistrationPage() {
             <View style={styles.eventHeader}>
               <View style={styles.eventTitleRow}>
                 <FontAwesome5 name="syringe" size={18} color="#43e97b" />
-                <Text style={styles.eventTitle}>{event.title}</Text>
+                <Text style={styles.eventTitle}>{event.eventName}</Text>
               </View>
               {selectedEvent?._id === event._id && (
                 <FontAwesome5 name="check-circle" size={20} color="#43e97b" />

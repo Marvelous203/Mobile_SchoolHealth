@@ -13,11 +13,32 @@ export default function HealthLayout() {
           title: "Dịch vụ Y tế",
         }}
       />
+      {/* Health Checkups */}
       <Stack.Screen
-        name="create-record"
+        name="checkups"
         options={{
-          title: "Tạo Hồ Sơ Sức Khỏe",
-          presentation: "modal",
+          title: "Khám sức khỏe",
+        }}
+      />
+      {/* Health Records */}
+      <Stack.Screen
+        name="records"
+        options={{
+          title: "Hồ sơ sức khỏe",
+        }}
+      />
+      {/* Medical Events - existing */}
+      <Stack.Screen
+        name="medical-events"
+        options={{
+          title: "Sự kiện y tế",
+        }}
+      />
+      {/* Medicines - existing */}
+      <Stack.Screen
+        name="medicines"
+        options={{
+          title: "Thuốc",
         }}
       />
     </Stack>

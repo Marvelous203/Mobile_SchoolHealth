@@ -408,3 +408,151 @@ export interface Medicine {
   createdAt: string
   updatedAt: string
 }
+
+export interface HealthCheckResult {
+  id: string
+  sessionId: string
+  studentId: string
+  height: number
+  weight: number
+  vision: string
+  heartRate: number
+  notes: string
+  abnormal: boolean
+}
+
+// Health Check Event Types
+export interface HealthCheckEvent {
+  _id: string
+  eventName: string
+  gradeId: string
+  description: string
+  location: string
+  startRegistrationDate: string
+  endRegistrationDate: string
+  eventDate: string
+  schoolYear: string
+  createdAt: string
+  updatedAt: string
+  __v: number
+}
+
+export interface HealthCheckEventSearchParams {
+  pageNum: number
+  pageSize: number
+  gradeId?: string
+  schoolYear?: string
+  query?: string
+}
+
+export interface HealthCheckEventSearchResponse {
+  pageData: HealthCheckEvent[]
+  pageInfo: {
+    pageNum: number
+    pageSize: number
+    totalItems: number
+    totalPages: number
+  }
+}
+
+export interface HealthCheckEventDetailResponse {
+  success: boolean
+  data: HealthCheckEvent
+  message?: string
+}
+
+// Health Check Registration Types
+export interface HealthCheckRegistration {
+  _id: string
+  studentId: string
+  parentId: string
+  eventId: string
+  status: "pending" | "approved" | "rejected"
+  registrationDate: string
+  schoolYear: string
+  consentDate?: string
+  cancellationReason?: string
+  notes?: string
+  createdAt: string
+  updatedAt: string
+  __v: number
+}
+
+export interface CreateHealthCheckRegistrationRequest {
+  parentId: string
+  studentId: string
+  eventId: string
+  status: "pending" | "approved" | "rejected"
+  schoolYear: string
+  cancellationReason?: string
+  notes?: string
+}
+
+export interface CreateHealthCheckRegistrationResponse {
+  success: boolean
+  data?: HealthCheckRegistration
+  message?: string
+}
+
+export interface HealthCheckRegistrationSearchParams {
+  pageNum: number
+  pageSize: number
+  studentId?: string
+  eventId?: string
+  parentId?: string
+  status?: "pending" | "approved" | "rejected"
+  schoolYear?: string
+}
+
+export interface HealthCheckRegistrationSearchResponse {
+  pageData: HealthCheckRegistration[]
+  pageInfo: {
+    pageNum: number
+    pageSize: number
+    totalItems: number
+    totalPages: number
+  }
+}
+
+export interface HealthCheckRegistrationDetailResponse {
+  success: boolean
+  data: {
+    _id: string
+    studentId: string
+    parentId: string
+    eventId: string
+    status: "pending" | "approved" | "rejected"
+    studentName: string
+    parentName: string
+    consentDate?: string
+    cancellationReason?: string
+    notes?: string
+    createdAt: string
+    updatedAt: string
+  }
+  message?: string
+}
+
+export interface HealthCheckRegistrationUpdateRequest {
+  status: "approved" | "rejected"
+  consentDate?: string
+  cancellationReason?: string
+  notes?: string
+}
+
+export interface HealthCheckRegistrationUpdateResponse {
+  success: boolean
+  data?: any
+  message?: string
+}
+
+// Existing MedicalIncident interface
+export interface MedicalIncident {
+  id: string
+  studentId: string
+  type: "fever" | "fall" | "injury" | "other"
+  description: string
+  treatment: string
+  date: string
+  nurseId: string
+}

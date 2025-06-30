@@ -36,7 +36,7 @@ export default function HealthScreen() {
       description: "Đặt lịch và xem kết quả khám sức khỏe",
       icon: "stethoscope",
       color: "#1890ff",
-      route: "/(tabs)/(parent)/checkups",
+      route: "/(tabs)/(parent)/health/checkups",
     },
     {
       id: "vaccinations",

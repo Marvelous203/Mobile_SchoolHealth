@@ -8,12 +8,15 @@ import { getAuthHeaders } from './auth';
 import {
     CreateHealthRecordRequest,
     CreateHealthRecordResponse,
+    HealthCheckResult,
     HealthRecordDetailResponse,
     HealthRecordSearchParams,
     HealthRecordSearchResponse,
     MedicalEvent,
     MedicalEventSearchParams,
     MedicalEventSearchResponse,
+    MedicalIncident,
+    MedicineSubmission,
     MedicineSubmissionDetailResponse,
     MedicineSubmissionSearchParams,
     MedicineSubmissionSearchResponse
@@ -109,18 +112,6 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
 
 // Types (Student interface moved to bottom to avoid duplicates)
 
-export interface MedicineSubmission {
-    id: string
-    studentId: string
-    medicineName: string
-    dosage: string
-    timesPerDay: number
-    startDate: string
-    endDate: string
-    notes: string
-    status: "pending" | "approved" | "completed"
-}
-
 export interface VaccinationSession {
     id: string
     name: string
@@ -147,28 +138,6 @@ export interface HealthCheckSession {
     description: string
     status: "upcoming" | "in-progress" | "completed"
     checkItems: string[]
-}
-
-export interface HealthCheckResult {
-    id: string
-    sessionId: string
-    studentId: string
-    height: number
-    weight: number
-    vision: string
-    heartRate: number
-    notes: string
-    abnormal: boolean
-}
-
-export interface MedicalIncident {
-    id: string
-    studentId: string
-    type: "fever" | "fall" | "injury" | "other"
-    description: string
-    treatment: string
-    date: string
-    nurseId: string
 }
 
 // Login response interface
@@ -620,22 +589,7 @@ export const api = {
         }
     },
 
-    updateVaccineRegistrationStatus: async (registrationId: string, updateData: VaccineRegistrationUpdateRequest): Promise<VaccineRegistrationUpdateResponse> => {
-        try {
-            console.log('🔄 Updating vaccine registration status:', registrationId, updateData)
-            
-            const response = await apiCall(`/vaccine-registration/${registrationId}/status`, {
-                method: 'PATCH',
-                body: JSON.stringify(updateData)
-            })
-            
-            console.log('✅ Vaccine registration status updated:', response)
-            return response
-        } catch (error) {
-            console.error('❌ Update vaccine registration status error:', error)
-            throw error
-        }
-    },
+
 // Removed old searchVaccineEvents - replaced with new version below
 
 getVaccineEventById: async (eventId: string): Promise<VaccineEventDetailResponse
@@ -705,6 +659,69 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
             return response;
         } catch (error) {
             console.error('❌ Link students error:', error);
+            throw error;
+        }
+    },
+
+    // Appointment methods
+    createAppointment: async (request: CreateAppointmentRequest): Promise<CreateAppointmentResponse> => {
+        try {
+            console.log('📅 Creating appointment:', request);
+            const response = await apiCall('/appointments', {
+                method: 'POST',
+                body: JSON.stringify(request)
+            });
+            console.log('✅ Appointment created:', response);
+            return response;
+        } catch (error) {
+            console.error('❌ Create appointment error:', error);
+            throw error;
+        }
+    },
+
+    searchAppointments: async (params: AppointmentSearchParams): Promise<AppointmentSearchResponse> => {
+        const queryParams = new URLSearchParams()
+        
+        if (params.parentId) queryParams.append('parentId', params.parentId)
+        if (params.status) queryParams.append('status', params.status)
+        if (params.query) queryParams.append('query', params.query)
+        
+        queryParams.append('pageNum', params.pageNum.toString())
+        queryParams.append('pageSize', params.pageSize.toString())
+        queryParams.append('fields', '_id,parentId,studentId,appointmentTime,reason,type,note,status,student.fullName')
+        
+        return apiCall(`/appointments/search?${queryParams.toString()}`)
+    },
+
+    getAppointmentById: async (appointmentId: string): Promise<AppointmentDetailResponse> => {
+        try {
+            console.log('📋 Getting appointment detail for ID:', appointmentId);
+            
+            const response = await apiCall(`/appointments/${appointmentId}`, {
+                method: 'GET'
+            });
+            
+            console.log('📅 Appointment detail response:', response);
+            return response;
+        } catch (error) {
+            console.error('❌ Get appointment detail error:', error);
+            throw error;
+        }
+    },
+
+    updateAppointment: async (appointmentId: string, request: UpdateAppointmentRequest): Promise<UpdateAppointmentResponse> => {
+        try {
+            console.log('📝 Updating appointment:', appointmentId, request);
+            
+            const response = await apiCall(`/appointments/${appointmentId}/approve`, {
+                method: 'PATCH',
+                body: JSON.stringify(request)
+            });
+            
+            console.log('✅ Appointment updated:', response);
+            return response;
+        } catch (error) {
+            console.error('❌ Update appointment error:', error);
             throw error;
         }
     },
@@ -920,13 +937,105 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
         }
     },
 
+    // Search grades filtered by parent's students
+    searchGradesForParent: async (params: { pageNum: number; pageSize: number; query?: string }) => {
+        try {
+            // Get all grades first
+            const allGradesResponse = await apiCall(`/grades/search?pageNum=1&pageSize=50`)
+            
+            // Get parent's student grades
+            let parentStudentGradeIds: string[] = []
+            
+            try {
+                const token = await AsyncStorage.getItem('token')
+                if (token) {
+                    const userProfileResponse = await apiCall('/users/profile', {
+                        method: 'GET',
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
+                    })
+                    
+                    if (userProfileResponse.data && userProfileResponse.data.studentIds && userProfileResponse.data.studentIds.length > 0) {
+                        console.log('🔍 Getting grades for parent students:', userProfileResponse.data.studentIds)
+                        
+                        // Get each student's grade
+                        for (const studentId of userProfileResponse.data.studentIds) {
+                            try {
+                                const studentResponse = await apiCall(`/users/${studentId}`, {
+                                    method: 'GET',
+                                    headers: {
+                                        Authorization: `Bearer ${token}`
+                                    }
+                                })
+                                
+                                if (studentResponse.data && studentResponse.data.classId) {
+                                    // Find which grade contains this class
+                                    if (allGradesResponse.pageData) {
+                                        for (const grade of allGradesResponse.pageData) {
+                                            if (grade.classIds && grade.classIds.includes(studentResponse.data.classId)) {
+                                                if (!parentStudentGradeIds.includes(grade._id)) {
+                                                    parentStudentGradeIds.push(grade._id)
+                                                }
+                                                break
+                                            }
+                                            if (grade.classes && grade.classes.length > 0) {
+                                                const foundInClasses = grade.classes.find((cls: any) => cls._id === studentResponse.data.classId)
+                                                if (foundInClasses && !parentStudentGradeIds.includes(grade._id)) {
+                                                    parentStudentGradeIds.push(grade._id)
+                                                    break
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (studentError) {
+                                console.warn(`⚠️ Could not get student ${studentId}:`, studentError)
+                            }
+                        }
+                    }
+                }
+            } catch (profileError) {
+                console.warn('⚠️ Could not get parent profile:', profileError)
+            }
+
+            // Filter grades to only include those with parent's students
+            let filteredGrades = []
+            if (allGradesResponse.pageData && parentStudentGradeIds.length > 0) {
+                filteredGrades = allGradesResponse.pageData.filter((grade: any) => 
+                    parentStudentGradeIds.includes(grade._id)
+                )
+            }
+
+            console.log('🎯 Filtered grades for parent:', filteredGrades.map((g: any) => g.name))
+            
+            return {
+                pageData: filteredGrades,
+                pageInfo: {
+                    pageNum: params.pageNum,
+                    pageSize: params.pageSize,
+                    totalItems: filteredGrades.length,
+                    totalPages: Math.ceil(filteredGrades.length / params.pageSize)
+                }
+            }
+        } catch (error) {
+            console.error('❌ Search grades for parent error:', error)
+            throw error
+        }
+    },
+
     // Search vaccine events
     searchVaccineEvents: async (params: { pageNum: number; pageSize: number; gradeId?: string; schoolYear?: string; query?: string }) => {
         try {
-            // Build URL with path parameters and query string
-            let url = `/vaccine-events/search/${params.pageNum}/${params.pageSize}`
+            // Get parent's student grade IDs efficiently
+            const studentGradeIds = await getParentStudentGradeIds()
             
-            const queryParams = new URLSearchParams()
+            // Use the new API format (similar to health check events)
+            const queryParams = new URLSearchParams({
+                pageNum: params.pageNum.toString(),
+                pageSize: params.pageSize.toString()
+            })
+            
             if (params.schoolYear) {
                 queryParams.append('schoolYear', params.schoolYear)
             }
@@ -937,16 +1046,51 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
                 queryParams.append('query', params.query)
             }
             
-            if (queryParams.toString()) {
-                url += `?${queryParams.toString()}`
+            // Add studentGradeIds to filter events for parent's children
+            if (studentGradeIds.length > 0 && !params.gradeId) {
+                // If no specific gradeId is requested, include all grades of parent's children
+                studentGradeIds.forEach(gradeId => {
+                    queryParams.append('gradeId', gradeId)
+                })
             }
             
-            console.log('🔍 Searching vaccine events with URL:', url)
-            console.log('🔍 Searching vaccine events with params:', params)
+            // Try multiple endpoint patterns since we're not sure which one works
+            const endpointsToTry = [
+                `/vaccine-events/search`,
+                `/vaccine-events/search/${params.pageNum}/${params.pageSize}`,
+                `/vaccine-events`
+            ];
             
-            const response = await apiCall(url)
-            console.log('✅ Vaccine events search result:', response)
-            return response
+            console.log('🔍 Searching vaccine events with params:', params)
+            console.log('👥 Student grade IDs found for vaccines:', studentGradeIds)
+            
+            for (const endpoint of endpointsToTry) {
+                try {
+                    const url = `${endpoint}?${queryParams.toString()}`;
+                    console.log('🔍 Trying vaccine events URL:', url);
+                    
+                    const response = await apiCall(url);
+                    if (response && response.pageData !== undefined) {
+                        console.log('✅ Vaccine events search result:', response);
+                        return response;
+                    }
+                } catch (endpointError) {
+                    console.log(`❌ Failed vaccine events endpoint ${endpoint}:`, endpointError);
+                    // Continue to next endpoint
+                }
+            }
+            
+            // If all endpoints fail, return empty result
+            console.log('⚠️ All vaccine events endpoints failed, returning empty result');
+            return {
+                pageData: [],
+                pageInfo: {
+                    pageNum: params.pageNum,
+                    pageSize: params.pageSize,
+                    totalItems: 0,
+                    totalPages: 0
+                }
+            };
         } catch (error) {
             console.error('❌ Search vaccine events error:', error)
             throw error
@@ -960,21 +1104,51 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
         studentId?: string; 
         eventId?: string; 
         parentId?: string;
+        schoolYear?: string;
+        status?: "pending" | "approved" | "rejected";
     }) => {
         try {
-            // Try multiple endpoint patterns since we're not sure which one works
+            // Get current user profile to extract parentId and studentIds if not provided
+            let finalParams = { ...params }
+            
+            if (!finalParams.parentId) {
+                try {
+                    const token = await AsyncStorage.getItem('token')
+                    if (token) {
+                        const userProfileResponse = await apiCall('/users/profile', {
+                            method: 'GET',
+                            headers: {
+                                Authorization: `Bearer ${token}`
+                            }
+                        })
+                        
+                        console.log('✅ Parent profile loaded for vaccine registrations:', userProfileResponse.data)
+                        
+                        if (userProfileResponse.data && userProfileResponse.data._id) {
+                            finalParams.parentId = userProfileResponse.data._id
+                            console.log('🔍 Using parentId from profile:', finalParams.parentId)
+                        }
+                    }
+                } catch (profileError) {
+                    console.warn('⚠️ Could not get user profile for parentId:', profileError)
+                }
+            }
+            
+            // Try multiple endpoint patterns
             const endpointsToTry = [
-                `/vaccine-registration/search/${params.pageNum}/${params.pageSize}`,
                 `/vaccine-registration/search`,
+                `/vaccine-registration/search/${finalParams.pageNum}/${finalParams.pageSize}`,
                 `/vaccine-registration`
             ];
             
             const queryParams = new URLSearchParams({
-                pageNum: params.pageNum.toString(),
-                pageSize: params.pageSize.toString(),
-                ...(params.studentId && { studentId: params.studentId }),
-                ...(params.eventId && { eventId: params.eventId }),
-                ...(params.parentId && { parentId: params.parentId })
+                pageNum: finalParams.pageNum.toString(),
+                pageSize: finalParams.pageSize.toString(),
+                ...(finalParams.studentId && { studentId: finalParams.studentId }),
+                ...(finalParams.eventId && { eventId: finalParams.eventId }),
+                ...(finalParams.parentId && { parentId: finalParams.parentId }),
+                ...(finalParams.schoolYear && { schoolYear: finalParams.schoolYear }),
+                ...(finalParams.status && { status: finalParams.status })
             });
             
             for (const endpoint of endpointsToTry) {
@@ -998,8 +1172,8 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
             return {
                 pageData: [],
                 pageInfo: {
-                    pageNum: params.pageNum,
-                    pageSize: params.pageSize,
+                    pageNum: finalParams.pageNum,
+                    pageSize: finalParams.pageSize,
                     totalItems: 0,
                     totalPages: 0
                 }
@@ -1019,12 +1193,27 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
         }
     },
 
+    // Get vaccine event detail
+    getVaccineEventDetail: async (eventId: string) => {
+        try {
+            console.log('🔍 Getting vaccine event detail for:', eventId)
+            
+            const response = await apiCall(`/vaccine-events/${eventId}`)
+            console.log('✅ Vaccine event detail result:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get vaccine event detail error:', error)
+            throw error
+        }
+    },
+
     // Create vaccine registration
     createVaccineRegistration: async (data: {
         parentId: string;
         studentId: string;
         eventId: string;
         status: "pending" | "approved" | "rejected";
+        schoolYear: string;
         cancellationReason?: string;
         note?: string;
     }) => {
@@ -1040,6 +1229,241 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
             return response
         } catch (error) {
             console.error('❌ Create vaccine registration error:', error)
+            throw error
+        }
+    },
+
+    // Get vaccine registration detail
+    getVaccineRegistrationDetail: async (registrationId: string) => {
+        try {
+            console.log('🔍 Getting vaccine registration detail for:', registrationId)
+            
+            const response = await apiCall(`/vaccine-registration/${registrationId}`)
+            console.log('✅ Vaccine registration detail result:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get vaccine registration detail error:', error)
+            throw error
+        }
+    },
+
+    // Update vaccine registration status
+    updateVaccineRegistrationStatus: async (registrationId: string, data: {
+        status: "approved" | "rejected";
+        consentDate?: string;
+        cancellationReason?: string;
+        notes?: string;
+    }) => {
+        try {
+            console.log('📝 Updating vaccine registration status:', registrationId, data)
+            
+            const response = await apiCall(`/vaccine-registration/${registrationId}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify(data)
+            })
+            
+            console.log('✅ Vaccine registration status updated:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Update vaccine registration status error:', error)
+            throw error
+        }
+    },
+
+    // Health Check Events API
+    searchHealthCheckEvents: async (params: { 
+        pageNum: number; 
+        pageSize: number; 
+        gradeId?: string; 
+        schoolYear?: string; 
+        query?: string 
+    }) => {
+        try {
+            // Get parent's student grade IDs efficiently
+            const studentGradeIds = await getParentStudentGradeIds()
+            
+            // Use the new API format based on your curl example
+            const queryParams = new URLSearchParams({
+                pageNum: params.pageNum.toString(),
+                pageSize: params.pageSize.toString()
+            })
+            
+            if (params.schoolYear) {
+                queryParams.append('schoolYear', params.schoolYear)
+            }
+            if (params.gradeId) {
+                queryParams.append('gradeId', params.gradeId)
+            }
+            if (params.query) {
+                queryParams.append('query', params.query)
+            }
+            
+            // Add studentGradeIds to filter events for parent's children
+            if (studentGradeIds.length > 0 && !params.gradeId) {
+                // If no specific gradeId is requested, include all grades of parent's children
+                studentGradeIds.forEach(gradeId => {
+                    queryParams.append('gradeId', gradeId)
+                })
+            }
+            
+            const url = `/medical-check-events/search?${queryParams.toString()}`
+            
+            console.log('🔍 Searching health check events with URL:', url)
+            console.log('🔍 Searching health check events with params:', params)
+            console.log('👥 Student grade IDs found:', studentGradeIds)
+            
+            const response = await apiCall(url)
+            console.log('✅ Health check events search result:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Search health check events error:', error)
+            throw error
+        }
+    },
+
+    // Get health check event detail
+    getHealthCheckEventDetail: async (eventId: string) => {
+        try {
+            console.log('🔍 Getting health check event detail for:', eventId)
+            
+            const response = await apiCall(`/medical-check-events/${eventId}`)
+            console.log('✅ Health check event detail result:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get health check event detail error:', error)
+            throw error
+        }
+    },
+
+    // Health Check Registration API
+    searchHealthCheckRegistrations: async (params: { 
+        pageNum: number; 
+        pageSize: number; 
+        studentId?: string; 
+        eventId?: string; 
+        parentId?: string;
+        status?: "pending" | "approved" | "rejected";
+        schoolYear?: string;
+    }) => {
+        try {
+            // Try multiple endpoint patterns since we're not sure which one works
+            const endpointsToTry = [
+                `/medical-check-registration/search/${params.pageNum}/${params.pageSize}`,
+                `/medical-check-registration/search`,
+                `/medical-check-registration`
+            ];
+            
+            const queryParams = new URLSearchParams({
+                pageNum: params.pageNum.toString(),
+                pageSize: params.pageSize.toString(),
+                ...(params.studentId && { studentId: params.studentId }),
+                ...(params.eventId && { eventId: params.eventId }),
+                ...(params.parentId && { parentId: params.parentId }),
+                ...(params.status && { status: params.status }),
+                ...(params.schoolYear && { schoolYear: params.schoolYear })
+            });
+            
+            for (const endpoint of endpointsToTry) {
+                try {
+                    const url = `${endpoint}?${queryParams.toString()}`;
+                    console.log('🔍 Trying health check registrations URL:', url);
+                    
+                    const response = await apiCall(url);
+                    if (response && response.pageData !== undefined) {
+                        console.log('✅ Health check registrations search result:', response);
+                        return response;
+                    }
+                } catch (endpointError) {
+                    console.log(`❌ Failed endpoint ${endpoint}:`, endpointError);
+                    // Continue to next endpoint
+                }
+            }
+            
+            // If all endpoints fail, return empty result
+            console.log('⚠️ All health check registration endpoints failed, returning empty result');
+            return {
+                pageData: [],
+                pageInfo: {
+                    pageNum: params.pageNum,
+                    pageSize: params.pageSize,
+                    totalItems: 0,
+                    totalPages: 0
+                }
+            };
+        } catch (error) {
+            console.error('❌ Search health check registrations error:', error)
+            // Return empty result instead of throwing error
+            return {
+                pageData: [],
+                pageInfo: {
+                    pageNum: params.pageNum,
+                    pageSize: params.pageSize,
+                    totalItems: 0,
+                    totalPages: 0
+                }
+            }
+        }
+    },
+
+    // Create health check registration
+    createHealthCheckRegistration: async (data: {
+        parentId: string;
+        studentId: string;
+        eventId: string;
+        status: "pending" | "approved" | "rejected";
+        schoolYear: string;
+        cancellationReason?: string;
+        notes?: string;
+    }) => {
+        try {
+            console.log('📝 Creating health check registration:', data)
+            
+            const response = await apiCall(`/medical-check-registration/create`, {
+                method: 'POST',
+                body: JSON.stringify(data)
+            })
+            
+            console.log('✅ Health check registration created:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Create health check registration error:', error)
+            throw error
+        }
+    },
+
+    // Get health check registration detail
+    getHealthCheckRegistrationDetail: async (registrationId: string) => {
+        try {
+            console.log('🔍 Getting health check registration detail for:', registrationId)
+            
+            const response = await apiCall(`/medical-check-registration/${registrationId}`)
+            console.log('✅ Health check registration detail result:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get health check registration detail error:', error)
+            throw error
+        }
+    },
+
+    // Update health check registration status
+    updateHealthCheckRegistrationStatus: async (registrationId: string, data: {
+        status: "approved" | "rejected";
+        consentDate?: string;
+        cancellationReason?: string;
+        notes?: string;
+    }) => {
+        try {
+            console.log('📝 Updating health check registration status:', registrationId, data)
+            
+            const response = await apiCall(`/medical-check-registration/${registrationId}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify(data)
+            })
+            
+            console.log('✅ Health check registration status updated:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Update health check registration status error:', error)
             throw error
         }
     },
@@ -1192,17 +1616,7 @@ interface MedicalCheckRegistrationUpdateResponse {
 }
 
 // Medical Events interfaces
-export interface Medicine {
-    _id: string
-    name: string
-    description: string
-    dosage: string
-    sideEffects: string
-    isDeleted: boolean
-    createdAt: string
-    updatedAt: string
-    __v: number
-}
+
 
 export interface SchoolNurse {
     _id: string
@@ -1249,6 +1663,208 @@ export interface MedicalSupply {
     createdAt: string
     updatedAt: string
     __v: number
+}
+
+// Appointment interfaces
+export interface Appointment {
+    _id: string
+    parentId: string
+    studentId: string
+    appointmentTime: string
+    reason: string
+    type: string
+    note: string
+    status: "pending" | "approved" | "completed" | "cancelled"
+    student: {
+        _id: string
+        fullName: string
+    }
+}
+
+export interface CreateAppointmentRequest {
+    studentId: string
+    appointmentTime: string
+    reason: string
+    type: string
+    note: string
+}
+
+export interface CreateAppointmentResponse {
+    success: boolean
+    data?: Appointment
+    message?: string
+}
+
+export interface AppointmentSearchParams {
+    parentId?: string
+    studentId?: string
+    status?: string
+    type?: string
+    managerId?: string
+    nurseId?: string
+    query?: string
+    pageNum: number
+    pageSize: number
+}
+
+export interface AppointmentSearchResponse {
+    pageData: Appointment[]
+    pageInfo: {
+        pageNum: number
+        pageSize: number
+        totalItems: number
+        totalPages: number
+    }
+}
+
+export interface AppointmentDetailResponse {
+    success: boolean
+    data: Appointment
+    message?: string
+}
+
+export interface UpdateAppointmentRequest {
+    status?: "approved" | "completed" | "cancelled"
+    note?: string
+}
+
+export interface UpdateAppointmentResponse {
+    success: boolean
+    data?: Appointment
+    message?: string
+}
+
+// Helper function to get parent's student grade IDs efficiently
+export const getParentStudentGradeIds = async (): Promise<string[]> => {
+    try {
+        const token = await AsyncStorage.getItem('token')
+        if (!token) return []
+
+        // Get parent profile
+        const userProfileResponse = await apiCall('/users/profile', {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        })
+
+        if (!userProfileResponse.data?.studentIds?.length) return []
+
+        const studentGradeIds: string[] = []
+        
+        // Try to get grades from classes search first (since we see gradeId in classes)
+        try {
+            const classesResponse = await apiCall('/classes/search?pageNum=1&pageSize=100&schoolYear=2024-2025', {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            })
+            
+            console.log('📚 Classes search result:', classesResponse)
+            
+            if (classesResponse.pageData) {
+                // Look for classes that contain our students
+                for (const studentId of userProfileResponse.data.studentIds) {
+                    for (const classItem of classesResponse.pageData) {
+                        if (classItem.studentIds && classItem.studentIds.includes(studentId)) {
+                            if (classItem.gradeId && !studentGradeIds.includes(classItem.gradeId)) {
+                                studentGradeIds.push(classItem.gradeId)
+                                console.log(`✅ Found student ${studentId} in class ${classItem.name} with gradeId: ${classItem.gradeId}`)
+                            }
+                        }
+                    }
+                }
+                
+                if (studentGradeIds.length > 0) {
+                    console.log('🎯 Found grades via classes search:', studentGradeIds)
+                    return studentGradeIds
+                }
+            }
+        } catch (classesError) {
+            console.warn('⚠️ Classes search failed, falling back to grades search:', classesError)
+        }
+        
+        // Fallback: Get all grades once
+        const gradesResponse = await apiCall('/grades/search?pageNum=1&pageSize=50', {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        })
+
+        if (!gradesResponse.pageData) return []
+
+        // Get each student's grade
+        for (const studentId of userProfileResponse.data.studentIds) {
+            try {
+                // Try multiple endpoints to get student data
+                let studentResponse: any = null
+                const studentEndpoints = [`/users/${studentId}`, `/students/${studentId}`]
+                
+                for (const endpoint of studentEndpoints) {
+                    try {
+                        studentResponse = await apiCall(endpoint, {
+                            method: 'GET',
+                            headers: {
+                                Authorization: `Bearer ${token}`
+                            }
+                        })
+                        console.log(`📋 Student ${studentId} data from ${endpoint}:`, studentResponse.data)
+                        if (studentResponse.data) break
+                    } catch (endpointError) {
+                        console.log(`❌ Failed student endpoint ${endpoint}:`, endpointError)
+                    }
+                }
+
+                if (!studentResponse?.data) {
+                    console.warn(`⚠️ Could not get student data for ${studentId}`)
+                    continue
+                }
+
+                // First, try to get gradeId directly from student
+                if (studentResponse.data?.gradeId) {
+                    if (!studentGradeIds.includes(studentResponse.data.gradeId)) {
+                        studentGradeIds.push(studentResponse.data.gradeId)
+                        console.log(`👦 Student ${studentId} has direct gradeId: ${studentResponse.data.gradeId}`)
+                    }
+                }
+                // If no direct gradeId, try to find via classId
+                else if (studentResponse.data?.classId) {
+                    console.log(`🔍 Looking for grade containing classId: ${studentResponse.data.classId}`)
+                    
+                    // Find which grade contains this class
+                    for (const grade of gradesResponse.pageData) {
+                        console.log(`🔍 Checking grade ${grade.name} (${grade._id}) with classIds:`, grade.classIds)
+                        
+                        if (grade.classIds?.includes(studentResponse.data.classId)) {
+                            if (!studentGradeIds.includes(grade._id)) {
+                                studentGradeIds.push(grade._id)
+                                console.log(`✅ Found student ${studentId} in grade: ${grade.name} (${grade._id})`)
+                            }
+                            break
+                        }
+                        if (grade.classes?.length > 0) {
+                            const foundInClasses = grade.classes.find((cls: any) => cls._id === studentResponse.data.classId)
+                            if (foundInClasses && !studentGradeIds.includes(grade._id)) {
+                                studentGradeIds.push(grade._id)
+                                console.log(`✅ Found student ${studentId} in grade classes: ${grade.name} (${grade._id})`)
+                                break
+                            }
+                        }
+                    }
+                }
+            } catch (studentError) {
+                console.warn(`⚠️ Could not get student ${studentId}:`, studentError)
+            }
+        }
+
+        console.log('📊 Parent student grade IDs:', studentGradeIds)
+        return studentGradeIds
+    } catch (error) {
+        console.error('❌ Get parent student grade IDs error:', error)
+        return []
+    }
 }
 
 // Remove duplicate interfaces - import from types.ts instead

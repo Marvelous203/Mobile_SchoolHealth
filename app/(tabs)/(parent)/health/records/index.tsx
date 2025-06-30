@@ -1,3 +1,5 @@
+import { api, getCurrentUserId } from "@/lib/api";
+import type { HealthRecord, HealthRecordSearchParams } from "@/lib/types";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -15,11 +17,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { api, getCurrentUserId } from "../../../../lib/api";
-import type {
-  HealthRecord,
-  HealthRecordSearchParams,
-} from "../../../../lib/types";
 
 const { width } = Dimensions.get("window");
 
