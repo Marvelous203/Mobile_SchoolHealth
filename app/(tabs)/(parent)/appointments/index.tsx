@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
   RefreshControl,
   SafeAreaView,
@@ -17,6 +18,81 @@ import {
 
 import { useAuth } from "@/lib/auth";
 
+// Loading skeleton component
+const AppointmentSkeleton = () => {
+  const opacity = React.useRef(new Animated.Value(0.3)).current;
+
+  React.useEffect(() => {
+    const animation = Animated.sequence([
+      Animated.timing(opacity, {
+        toValue: 0.7,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 0.3,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]);
+
+    Animated.loop(animation).start();
+  }, []);
+
+  return (
+    <Animated.View style={[styles.appointmentCard, { opacity }]}>
+      <View style={styles.appointmentHeader}>
+        <View style={styles.typeSection}>
+          <View
+            style={[styles.skeletonCircle, { backgroundColor: "#e0e0e0" }]}
+          />
+          <View style={styles.typeInfo}>
+            <View
+              style={[
+                styles.skeletonText,
+                { width: "60%", height: 20, backgroundColor: "#e0e0e0" },
+              ]}
+            />
+            <View
+              style={[
+                styles.skeletonText,
+                {
+                  width: "40%",
+                  height: 16,
+                  backgroundColor: "#e0e0e0",
+                  marginTop: 8,
+                },
+              ]}
+            />
+          </View>
+        </View>
+      </View>
+      <View
+        style={[
+          styles.skeletonText,
+          {
+            width: "80%",
+            height: 16,
+            backgroundColor: "#e0e0e0",
+            marginTop: 12,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.skeletonText,
+          {
+            width: "40%",
+            height: 14,
+            backgroundColor: "#e0e0e0",
+            marginTop: 8,
+          },
+        ]}
+      />
+    </Animated.View>
+  );
+};
+
 export default function AppointmentsScreen() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,11 +100,11 @@ export default function AppointmentsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [isUserLoaded, setIsUserLoaded] = useState(false);
 
-  // Pagination with smaller page size
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const pageSize = 10; // Reduced from 20 to 10
+  const pageSize = 5;
 
   const { user } = useAuth();
 
@@ -58,8 +134,24 @@ export default function AppointmentsScreen() {
     other: "Khác",
   };
 
+  // Check when user is loaded
+  useEffect(() => {
+    if (user?._id) {
+      console.log("👤 Parent loaded with ID:", user._id);
+      setIsUserLoaded(true);
+    }
+  }, [user?._id]);
+
   const loadAppointments = async (page = 1, isRefresh = false) => {
     try {
+      console.log("🔄 Starting loadAppointments...", { page, isRefresh });
+      console.log("👤 Current parent:", user?._id);
+
+      if (!user?._id) {
+        console.log("⚠️ No parent ID available");
+        return;
+      }
+
       if (page === 1) {
         setIsLoading(true);
       } else {
@@ -67,7 +159,7 @@ export default function AppointmentsScreen() {
       }
 
       const params: AppointmentSearchParams = {
-        parentId: user?.id,
+        parentId: user._id,
         pageNum: page,
         pageSize: pageSize,
       };
@@ -80,7 +172,26 @@ export default function AppointmentsScreen() {
         params.status = selectedStatus;
       }
 
+      console.log(
+        "📤 Fetching appointments with params:",
+        JSON.stringify(params, null, 2)
+      );
+
       const response = await api.searchAppointments(params);
+      console.log(
+        "📥 Appointments API Response:",
+        JSON.stringify(response, null, 2)
+      );
+
+      if (!response.pageData) {
+        console.log("⚠️ No appointments data received");
+        if (page === 1 || isRefresh) {
+          setAppointments([]);
+        }
+        return;
+      }
+
+      console.log("📥 Received appointments:", response.pageData.length);
 
       if (page === 1 || isRefresh) {
         setAppointments(response.pageData);
@@ -88,11 +199,21 @@ export default function AppointmentsScreen() {
         setAppointments((prev) => [...prev, ...response.pageData]);
       }
 
-      setCurrentPage(page);
+      setCurrentPage(response.pageInfo.pageNum);
       setTotalPages(response.pageInfo.totalPages);
-    } catch (error) {
-      console.error("Failed to load appointments", error);
-      Alert.alert("Lỗi", "Không thể tải danh sách lịch hẹn");
+    } catch (error: any) {
+      console.error("❌ Failed to load appointments", error);
+
+      const errorMessage =
+        error.message === "ParentId is required for searching appointments"
+          ? "Vui lòng đăng nhập lại để xem lịch hẹn"
+          : "Không thể tải danh sách lịch hẹn. Vui lòng thử lại sau.";
+
+      Alert.alert("Thông báo", errorMessage);
+
+      if (page === 1) {
+        setAppointments([]);
+      }
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -100,18 +221,33 @@ export default function AppointmentsScreen() {
     }
   };
 
+  // Load appointments only after user is loaded
   useEffect(() => {
-    if (user?.id) {
-      loadAppointments();
+    console.log("🔄 Checking parent loaded state:", {
+      isUserLoaded,
+      parentId: user?._id,
+    });
+    if (isUserLoaded && user?._id) {
+      console.log("🔄 Initial load triggered after parent loaded");
+      loadAppointments(1, false);
     }
-  }, [user, selectedStatus]);
+  }, [isUserLoaded]);
 
-  // Reduced debounce time for search
+  // Handle status changes
   useEffect(() => {
-    if (user?.id) {
+    console.log("🔄 Status change effect triggered:", selectedStatus);
+    if (isUserLoaded && user?._id) {
+      loadAppointments(1, true);
+    }
+  }, [selectedStatus]);
+
+  // Handle search
+  useEffect(() => {
+    console.log("🔍 Search effect triggered:", searchQuery);
+    if (isUserLoaded && user?._id) {
       const timeoutId = setTimeout(() => {
         loadAppointments(1, true);
-      }, 300); // Reduced from 500ms to 300ms
+      }, 500);
 
       return () => clearTimeout(timeoutId);
     }
@@ -294,9 +430,11 @@ export default function AppointmentsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         {renderHeader()}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-          <Text style={styles.loadingText}>Đang tải lịch hẹn...</Text>
+        {renderSearchAndFilter()}
+        <View style={styles.listContainer}>
+          {[1, 2, 3].map((key) => (
+            <AppointmentSkeleton key={key} />
+          ))}
         </View>
       </SafeAreaView>
     );
@@ -520,5 +658,14 @@ const styles = StyleSheet.create({
   loadMoreContainer: {
     paddingVertical: 16,
     alignItems: "center",
+  },
+  skeletonCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  skeletonText: {
+    borderRadius: 4,
+    marginVertical: 2,
   },
 });

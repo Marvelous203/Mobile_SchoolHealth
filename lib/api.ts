@@ -232,6 +232,50 @@ export interface MedicineItem {
       totalPages: number
     }
   }
+
+// Add these interfaces after other interface definitions but before the api object
+
+// Password change interfaces
+export interface ChangePasswordRequest {
+    oldPassword: string;
+    newPassword: string;
+}
+
+export interface ChangePasswordResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        email: string;
+    };
+}
+
+// Forgot password interfaces
+export interface ForgotPasswordRequest {
+    email: string;
+}
+
+export interface ForgotPasswordResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        email: string;
+    };
+}
+
+// Reset password interfaces
+export interface ResetPasswordRequest {
+    token: string;
+    newPassword: string;
+}
+
+export interface ResetPasswordResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        email: string;
+    };
+}
+
 // API methods
 export const api = {
     // Expose apiCall for direct usage
@@ -409,18 +453,20 @@ export const api = {
         }
     },
 
+
+
     // Update user profile
     updateUserProfile: async (userId: string, userData: Partial<UserProfile>): Promise<GetUserProfileResponse> => {
         try {
-            console.log('✏️ Updating user profile for ID:', userId)
-            console.log('📝 Update data:', userData)
+            console.log('✏️ Updating user profile for ID:', userId);
+            console.log('📝 Update data:', userData);
             
             const response = await apiCall(`/users/${userId}`, {
                 method: 'PUT',
                 body: JSON.stringify(userData)
             });
             
-            console.log('✅ User profile updated:', response)
+            console.log('✅ User profile updated:', response);
             return response;
         } catch (error) {
             console.error('❌ Update user profile error:', error);
@@ -471,12 +517,40 @@ export const api = {
     // Student methods
     getStudentById: async (studentId: string): Promise<any> => {
         try {
-            console.log(`Fetching student profile for ID: ${studentId}`);
+            console.log(`📚 Fetching student profile for ID: ${studentId}`);
             const response = await apiCall(`/students/${studentId}`);
-            console.log('Student profile response:', response);
+            
+            // If student has classId, fetch class information
+            if (response.data?.classId) {
+                try {
+                    // Simplified URL without unnecessary fields
+                    const classResponse = await apiCall(`/classes/${response.data.classId}`);
+                    if (classResponse.data) {
+                        response.data.classInfo = {
+                            _id: classResponse.data._id,
+                            name: classResponse.data.name,
+                            isDeleted: classResponse.data.isDeleted
+                        };
+                    }
+                } catch (classError) {
+                    console.warn(`⚠️ Failed to fetch class info for ID ${response.data.classId}:`, classError);
+                }
+            }
+            
+            // Log detailed information about class data
+            if (response.data) {
+                console.log('📋 Student data details:', {
+                    id: response.data._id,
+                    name: response.data.fullName,
+                    classId: response.data.classId,
+                    hasClassInfo: !!response.data.classInfo,
+                    classInfo: response.data.classInfo
+                });
+            }
+            
             return response;
         } catch (error) {
-            console.error('Get student by ID error:', error);
+            console.error('❌ Get student by ID error:', error);
             throw error;
         }
     },
@@ -680,17 +754,37 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
     },
 
     searchAppointments: async (params: AppointmentSearchParams): Promise<AppointmentSearchResponse> => {
-        const queryParams = new URLSearchParams()
-        
-        if (params.parentId) queryParams.append('parentId', params.parentId)
-        if (params.status) queryParams.append('status', params.status)
-        if (params.query) queryParams.append('query', params.query)
-        
-        queryParams.append('pageNum', params.pageNum.toString())
-        queryParams.append('pageSize', params.pageSize.toString())
-        queryParams.append('fields', '_id,parentId,studentId,appointmentTime,reason,type,note,status,student.fullName')
-        
-        return apiCall(`/appointments/search?${queryParams.toString()}`)
+        try {
+            console.log('🔍 Searching appointments with params:', params);
+            
+            // Validate required parentId
+            if (!params.parentId) {
+                throw new Error('ParentId is required for searching appointments');
+            }
+
+            // Build base endpoint with pagination
+            const endpoint = `/appointments/search/${params.pageNum}/${params.pageSize}`;
+            
+            // Build query params starting with parentId
+            const queryParams = new URLSearchParams();
+            queryParams.append('parentId', params.parentId);
+            
+            // Add optional filters
+            if (params.status) queryParams.append('status', params.status);
+            if (params.type) queryParams.append('type', params.type);
+            if (params.query) queryParams.append('query', params.query);
+            
+            const url = `${endpoint}?${queryParams.toString()}`;
+            console.log('📍 Final URL:', url);
+
+            const response = await apiCall(url);
+            console.log('✅ Appointments search response:', response);
+            
+            return response;
+        } catch (error) {
+            console.error('❌ Search appointments error:', error);
+            throw error;
+        }
     },
 
     getAppointmentById: async (appointmentId: string): Promise<AppointmentDetailResponse> => {
@@ -1468,6 +1562,62 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
         }
     },
 
+    // Change password
+    changePassword: async (data: ChangePasswordRequest): Promise<ChangePasswordResponse> => {
+        try {
+            console.log('🔐 Changing password...');
+            const response = await apiCall('/users/change-password', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            console.log('✅ Password changed successfully');
+            return response;
+        } catch (error) {
+            console.error('❌ Change password error:', error);
+            throw error;
+        }
+    },
+
+    // Forgot password - request reset
+    forgotPassword: async (data: ForgotPasswordRequest): Promise<ForgotPasswordResponse> => {
+        try {
+            console.log('📧 Requesting password reset for email:', data.email);
+            const response = await apiCall('/auth/forgot-password', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            console.log('✅ Password reset email sent');
+            return response;
+        } catch (error) {
+            console.error('❌ Forgot password error:', error);
+            throw error;
+        }
+    },
+
+    // Reset password with token
+    resetPassword: async (data: ResetPasswordRequest): Promise<ResetPasswordResponse> => {
+        try {
+            console.log('🔐 Resetting password...');
+            const response = await apiCall('/auth/reset-password', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            console.log('✅ Password reset successfully');
+            return response;
+        } catch (error) {
+            console.error('❌ Reset password error:', error);
+            throw error;
+        }
+    },
+
+    // Update student profile
+    updateStudent: async (studentId: string, data: UpdateStudentRequest): Promise<UpdateStudentResponse> => {
+        return apiCall(`/students/${studentId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+
 };
 
 // Comments interfaces
@@ -1640,6 +1790,7 @@ export interface Student {
     gender: 'male' | 'female'
     dob: string
     classId: string
+    className?: string
     avatar: string
     studentCode: string
     parents: {
@@ -1679,6 +1830,7 @@ export interface Appointment {
         _id: string
         fullName: string
     }
+    createdAt: string
 }
 
 export interface CreateAppointmentRequest {
@@ -1868,6 +2020,19 @@ export const getParentStudentGradeIds = async (): Promise<string[]> => {
 }
 
 // Remove duplicate interfaces - import from types.ts instead
+
+export interface UpdateStudentRequest {
+  fullName: string;
+  gender: "male" | "female";
+  dob: string;
+  avatar?: string;
+}
+
+export interface UpdateStudentResponse {
+  success: boolean;
+  data?: Student;
+  message?: string;
+}
 
 
 

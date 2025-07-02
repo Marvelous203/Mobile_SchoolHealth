@@ -1,5 +1,7 @@
 import { api } from "@/lib/api";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -8,10 +10,12 @@ import {
   Alert,
   Dimensions,
   Image,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -26,13 +30,19 @@ interface Student {
   gender: "male" | "female";
   dob: string;
   avatar?: string;
+  classId: string | null;
   classInfo?: {
+    _id: string;
     name: string;
+    isDeleted: boolean;
   };
+  isDeleted: boolean;
   parentInfos?: {
+    _id: string;
     fullName: string;
     phone: string;
     email: string;
+    role: string;
     type: "father" | "mother" | "guardian";
   }[];
 }
@@ -50,6 +60,18 @@ export default function StudentDetail() {
   const [student, setStudent] = useState<Student | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Menu state
+  const [showMenu, setShowMenu] = useState(false);
+
+  // Edit profile state
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editFullName, setEditFullName] = useState("");
+  const [editGender, setEditGender] = useState<"male" | "female">("male");
+  const [editDob, setEditDob] = useState("");
+  const [editAvatar, setEditAvatar] = useState("");
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const loadStudentData = async () => {
     try {
@@ -141,7 +163,10 @@ export default function StudentDetail() {
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Chi tiết học sinh</Text>
-        <TouchableOpacity style={styles.moreButton}>
+        <TouchableOpacity
+          style={styles.moreButton}
+          onPress={() => setShowMenu(true)}
+        >
           <MaterialIcons name="more-vert" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -165,7 +190,9 @@ export default function StudentDetail() {
 
         <View style={styles.studentInfo}>
           <Text style={styles.studentName}>{student?.fullName}</Text>
-          <Text style={styles.studentClass}>
+          <Text
+            style={[styles.studentClass, !student?.classInfo && styles.noClass]}
+          >
             {student?.classInfo?.name || "Chưa phân lớp"}
           </Text>
           <Text style={styles.studentCode}>Mã HS: {student?.studentCode}</Text>
@@ -286,6 +313,279 @@ export default function StudentDetail() {
     </View>
   );
 
+  const handleUpdateProfile = async () => {
+    try {
+      if (!editFullName.trim()) {
+        Alert.alert("Lỗi", "Vui lòng nhập họ và tên");
+        return;
+      }
+
+      if (!student) {
+        Alert.alert("Lỗi", "Không tìm thấy thông tin học sinh");
+        return;
+      }
+
+      setIsUpdatingProfile(true);
+
+      const updateData = {
+        fullName: editFullName.trim(),
+        gender: editGender,
+        dob: editDob,
+        avatar: editAvatar,
+      };
+
+      const response = await api.updateStudent(id, updateData);
+
+      if (response.success && response.data) {
+        // Use the API response data directly
+        setStudent(response.data);
+        // Reload student data to get the latest information including class
+        loadStudentData();
+        Alert.alert("Thành công", "Cập nhật thông tin thành công");
+        setShowEditProfile(false);
+      } else {
+        throw new Error(response.message || "Không thể cập nhật thông tin");
+      }
+    } catch (error: any) {
+      console.error("Error updating profile:", error);
+      Alert.alert(
+        "Lỗi",
+        error.message || "Không thể cập nhật thông tin. Vui lòng thử lại."
+      );
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setEditAvatar(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Lỗi", "Không thể chọn ảnh. Vui lòng thử lại.");
+    }
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setEditDob(selectedDate.toISOString());
+    }
+  };
+
+  // Initialize edit form when modal opens
+  useEffect(() => {
+    if (showEditProfile && student) {
+      setEditFullName(student.fullName);
+      setEditGender(student.gender);
+      setEditDob(student.dob);
+      setEditAvatar(student.avatar || "");
+    }
+  }, [showEditProfile, student]);
+
+  const renderMenu = () => (
+    <Modal
+      visible={showMenu}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowMenu(false)}
+    >
+      <TouchableOpacity
+        style={styles.menuOverlay}
+        activeOpacity={1}
+        onPress={() => setShowMenu(false)}
+      >
+        <View style={styles.menuContainer}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setShowMenu(false);
+              setShowEditProfile(true);
+            }}
+          >
+            <MaterialIcons name="edit" size={24} color="#4CAF50" />
+            <Text style={styles.menuText}>Chỉnh sửa thông tin</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  const renderEditProfileModal = () => (
+    <Modal
+      visible={showEditProfile}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setShowEditProfile(false)}
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Chỉnh sửa thông tin</Text>
+            <TouchableOpacity
+              onPress={() => setShowEditProfile(false)}
+              style={styles.closeButton}
+            >
+              <MaterialIcons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalBody}>
+            {/* Profile Image */}
+            <View style={styles.imageContainer}>
+              <TouchableOpacity onPress={pickImage}>
+                <Image
+                  source={
+                    editAvatar
+                      ? { uri: editAvatar }
+                      : { uri: "https://via.placeholder.com/120" }
+                  }
+                  style={styles.profileImage}
+                />
+                <View style={styles.imageOverlay}>
+                  <MaterialIcons name="camera-alt" size={24} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Full Name Input */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Họ và tên</Text>
+              <TextInput
+                style={styles.input}
+                value={editFullName}
+                onChangeText={setEditFullName}
+                placeholder="Nhập họ và tên"
+              />
+            </View>
+
+            {/* Gender Selection */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Giới tính</Text>
+              <View style={styles.genderContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.genderButton,
+                    editGender === "male" && styles.genderButtonActive,
+                  ]}
+                  onPress={() => setEditGender("male")}
+                >
+                  <MaterialIcons
+                    name="male"
+                    size={24}
+                    color={editGender === "male" ? "#fff" : "#666"}
+                  />
+                  <Text
+                    style={[
+                      styles.genderText,
+                      editGender === "male" && styles.genderTextActive,
+                    ]}
+                  >
+                    Nam
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.genderButton,
+                    editGender === "female" && styles.genderButtonActive,
+                  ]}
+                  onPress={() => setEditGender("female")}
+                >
+                  <MaterialIcons
+                    name="female"
+                    size={24}
+                    color={editGender === "female" ? "#fff" : "#666"}
+                  />
+                  <Text
+                    style={[
+                      styles.genderText,
+                      editGender === "female" && styles.genderTextActive,
+                    ]}
+                  >
+                    Nữ
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Date of Birth Input */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Ngày sinh</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text style={styles.dateButtonText}>
+                  {editDob
+                    ? new Date(editDob).toLocaleDateString("vi-VN")
+                    : "Chọn ngày sinh"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={editDob ? new Date(editDob) : new Date()}
+                mode="date"
+                display="default"
+                onChange={handleDateChange}
+                maximumDate={new Date()}
+              />
+            )}
+
+            {/* Read-only Information */}
+            <View style={styles.readOnlySection}>
+              <Text style={styles.sectionTitle}>Thông tin khác</Text>
+
+              <View style={styles.infoContainer}>
+                <Text style={styles.infoLabel}>Mã học sinh</Text>
+                <Text style={styles.infoValue}>{student?.studentCode}</Text>
+              </View>
+
+              <View style={styles.infoContainer}>
+                <Text style={styles.infoLabel}>Lớp</Text>
+                <Text style={styles.infoValue}>
+                  {student?.classInfo?.name || "Chưa phân lớp"}
+                </Text>
+              </View>
+            </View>
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
+              onPress={() => setShowEditProfile(false)}
+            >
+              <Text style={[styles.buttonText, { color: "#666" }]}>Hủy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, styles.saveButton]}
+              onPress={handleUpdateProfile}
+              disabled={isUpdatingProfile}
+            >
+              {isUpdatingProfile ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={[styles.buttonText, styles.saveButtonText]}>
+                  Lưu thay đổi
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -339,6 +639,8 @@ export default function StudentDetail() {
         {renderRecentActivities()}
         <View style={styles.bottomSpacing} />
       </ScrollView>
+      {renderMenu()}
+      {renderEditProfileModal()}
     </SafeAreaView>
   );
 }
@@ -465,9 +767,11 @@ const styles = StyleSheet.create({
   },
   studentClass: {
     fontSize: 16,
-    color: "#1890ff",
-    fontWeight: "600",
+    color: "#4CAF50",
     marginBottom: 4,
+  },
+  noClass: {
+    color: "#ff9800",
   },
   studentCode: {
     fontSize: 14,
@@ -638,5 +942,186 @@ const styles = StyleSheet.create({
 
   bottomSpacing: {
     height: 30,
+  },
+
+  // Menu
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuContainer: {
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 20,
+    width: "80%",
+    alignItems: "center",
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+    borderRadius: 8,
+  },
+  menuText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#262626",
+  },
+
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    width: "90%",
+    maxHeight: "80%",
+    overflow: "hidden",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalBody: {
+    padding: 16,
+  },
+  imageContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  profileImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  imageOverlay: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    borderRadius: 20,
+    padding: 8,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+  },
+  infoContainer: {
+    marginBottom: 16,
+    backgroundColor: "#f8f9fa",
+    padding: 12,
+    borderRadius: 8,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 16,
+    color: "#333",
+    fontWeight: "500",
+  },
+  modalFooter: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  button: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  cancelButton: {
+    backgroundColor: "#f5f5f5",
+  },
+  saveButton: {
+    backgroundColor: "#4CAF50",
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  saveButtonText: {
+    color: "#fff",
+  },
+  dateButton: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  genderContainer: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  genderButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    gap: 8,
+  },
+  genderButtonActive: {
+    backgroundColor: "#4CAF50",
+    borderColor: "#4CAF50",
+  },
+  genderText: {
+    fontSize: 16,
+    color: "#666",
+  },
+  genderTextActive: {
+    color: "#fff",
+  },
+  readOnlySection: {
+    marginTop: 24,
+    backgroundColor: "#f8f9fa",
+    borderRadius: 12,
+    padding: 16,
   },
 });

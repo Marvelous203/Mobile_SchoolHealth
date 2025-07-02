@@ -556,3 +556,17 @@ export interface MedicalIncident {
   date: string
   nurseId: string
 }
+
+export interface VaccineEvent {
+  _id: string
+  eventName: string
+  description: string
+  vaccineName: string
+  location: string
+  startRegistrationDate: string
+  endRegistrationDate: string
+  eventDate: string
+  status: "upcoming" | "ongoing" | "completed"
+  createdAt: string
+  updatedAt: string
+}

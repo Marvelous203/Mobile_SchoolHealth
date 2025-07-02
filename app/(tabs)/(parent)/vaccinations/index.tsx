@@ -1,10 +1,12 @@
 "use client";
 
-import { api } from "@/lib/api";
+import { api, getCurrentUserId } from "@/lib/api";
+import type { VaccineEvent } from "@/lib/types";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Dimensions,
   FlatList,
   RefreshControl,
@@ -15,26 +17,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { formatDate, formatTime } from "../../../../lib/utils";
 
 const { width } = Dimensions.get("window");
 
 // Type definitions
-interface VaccineEvent {
-  _id: string;
-  eventName: string;
-  gradeId: string;
-  description: string;
-  vaccineName: string;
-  location: string;
-  startRegistrationDate: string;
-  endRegistrationDate: string;
-  eventDate: string;
-  schoolYear: string;
-  createdAt: string;
-  updatedAt: string;
-  __v: number;
-}
-
 interface VaccinationSession {
   name: string;
   date: string;
@@ -45,7 +32,30 @@ interface VaccinationHistory {
   date: string;
 }
 
+interface Student {
+  _id: string;
+  fullName: string;
+  classId?: string;
+  avatar?: string;
+}
+
 type TabType = "events" | "sessions" | "history";
+
+const EmptyUpcoming = () => (
+  <View style={styles.emptyState}>
+    <Ionicons name="calendar-outline" size={64} color="#8e8e93" />
+    <Text style={styles.emptyStateText}>
+      Chưa có sự kiện tiêm chủng nào sắp diễn ra
+    </Text>
+  </View>
+);
+
+const EmptyHistory = () => (
+  <View style={styles.emptyState}>
+    <Ionicons name="time-outline" size={64} color="#8e8e93" />
+    <Text style={styles.emptyStateText}>Chưa có lịch sử tiêm chủng nào</Text>
+  </View>
+);
 
 export default function VaccinationsScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -60,15 +70,45 @@ export default function VaccinationsScreen() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<TabType>("events");
+  const router = useRouter();
 
   // School Year Selection
   const [selectedSchoolYear, setSelectedSchoolYear] =
-    useState<string>("2024-2025");
+    useState<string>("2025-2026");
   const [availableSchoolYears] = useState<string[]>([
-    "2024-2025",
-    "2023-2024",
     "2025-2026",
+    "2026-2027",
+    "2027-2028",
   ]);
+
+  const [students, setStudents] = useState<Student[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
+  const loadStudents = async () => {
+    try {
+      const userId = await getCurrentUserId();
+      if (!userId) return;
+
+      const userResponse = await api.getUserProfile(userId);
+      if (userResponse.success && userResponse.data.studentIds) {
+        const studentPromises = userResponse.data.studentIds.map((id: string) =>
+          api.getStudentProfile(id)
+        );
+
+        const studentResponses = await Promise.all(studentPromises);
+        const loadedStudents = studentResponses
+          .filter((res) => res.success)
+          .map((res) => res.data);
+
+        setStudents(loadedStudents);
+        if (loadedStudents.length === 1) {
+          setSelectedStudent(loadedStudents[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load students:", error);
+    }
+  };
 
   const loadData = async (
     page: number = 1,
@@ -101,7 +141,6 @@ export default function VaccinationsScreen() {
         setTotalPages(eventsResponse.pageInfo?.totalPages || 1);
       } catch (apiError) {
         console.warn("API call failed, using fallback data:", apiError);
-        // Set empty data on API failure to prevent crash
         if (refresh || page === 1) {
           setVaccineEvents([]);
         }
@@ -109,7 +148,7 @@ export default function VaccinationsScreen() {
         setTotalPages(1);
       }
 
-      // Load existing vaccination sessions (keep for backward compatibility)
+      // Load existing vaccination sessions
       try {
         const sessions = await api.getVaccinationSessions();
         setVaccinationSessions(sessions);
@@ -118,18 +157,20 @@ export default function VaccinationsScreen() {
         setVaccinationSessions([]);
       }
 
-      // Load vaccination history
-      try {
-        const studentId = "1"; // In real app, get from context
-        const history = await api.getVaccinationHistory(studentId);
-        setVaccinationHistory(history);
-      } catch (error) {
-        console.log("No vaccination history available:", error);
+      // Load vaccination history only if student is selected
+      if (selectedStudent) {
+        try {
+          const history = await api.getVaccinationHistory(selectedStudent._id);
+          setVaccinationHistory(history);
+        } catch (error) {
+          console.log("No vaccination history available:", error);
+          setVaccinationHistory([]);
+        }
+      } else {
         setVaccinationHistory([]);
       }
     } catch (error) {
       console.error("Failed to load vaccination data", error);
-      // Ensure UI doesn't crash by setting safe defaults
       setVaccineEvents([]);
       setVaccinationSessions([]);
       setVaccinationHistory([]);
@@ -160,8 +201,12 @@ export default function VaccinationsScreen() {
   };
 
   useEffect(() => {
+    loadStudents();
+  }, []);
+
+  useEffect(() => {
     loadData();
-  }, [selectedSchoolYear]); // Reload when school year changes
+  }, [selectedSchoolYear, selectedStudent]); // Reload when student changes
 
   // Helper functions - Calculate status based on dates
   const getEventStatus = (event: VaccineEvent): string => {
@@ -226,26 +271,26 @@ export default function VaccinationsScreen() {
     }
   };
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
-
-  const formatTime = (dateString: string): string => {
-    return new Date(dateString).toLocaleTimeString("vi-VN", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   const handleEventPress = (eventId: string): void => {
-    router.push(`/(tabs)/(parent)/vaccinations/event-detail?id=${eventId}`);
+    if (!selectedStudent) {
+      Alert.alert("Thông báo", "Vui lòng chọn học sinh trước khi xem chi tiết");
+      return;
+    }
+    router.push({
+      pathname: "/(tabs)/(parent)/vaccinations/event-detail",
+      params: {
+        id: eventId,
+        studentId: selectedStudent._id,
+        studentName: selectedStudent.fullName,
+      },
+    });
   };
 
   const handleRegisterPress = (): void => {
+    if (!selectedStudent) {
+      Alert.alert("Thông báo", "Vui lòng chọn học sinh trước khi đăng ký");
+      return;
+    }
     router.push("/(tabs)/(parent)/vaccinations/registration");
   };
 
@@ -286,109 +331,98 @@ export default function VaccinationsScreen() {
     </View>
   );
 
+  // Add student selection render function
+  const renderStudentSelection = () => (
+    <View style={styles.studentContainer}>
+      <Text style={styles.sectionLabel}>Chọn học sinh</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.studentScrollContainer}
+      >
+        {students.map((student) => (
+          <TouchableOpacity
+            key={student._id}
+            style={[
+              styles.studentCard,
+              selectedStudent?._id === student._id &&
+                styles.selectedStudentCard,
+            ]}
+            onPress={() => setSelectedStudent(student)}
+          >
+            <Ionicons
+              name="person-circle-outline"
+              size={24}
+              color={
+                selectedStudent?._id === student._id ? "#4A90E2" : "#8e8e93"
+              }
+            />
+            <Text
+              style={[
+                styles.studentName,
+                selectedStudent?._id === student._id &&
+                  styles.selectedStudentName,
+              ]}
+            >
+              {student.fullName}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
   // Render functions
-  const renderVaccineEventItem = ({ item }: { item: VaccineEvent }) => {
-    const eventStatus = getEventStatus(item);
-    const isRegistrationOpen = eventStatus === "ongoing";
+  const renderEventCard = (event: VaccineEvent) => {
+    const isPast = new Date(event.eventDate) < new Date();
+    const statusColor = isPast ? "#8e8e93" : "#4A90E2";
+    const statusBgColor = isPast ? "#f2f2f7" : "#EBF5FF";
 
     return (
       <TouchableOpacity
-        style={[
-          styles.modernCard,
-          { borderLeftColor: getStatusColor(eventStatus) },
-        ]}
-        onPress={() => handleEventPress(item._id)}
-        activeOpacity={0.8}
+        key={event._id}
+        style={[styles.eventCard, isPast && styles.pastEventCard]}
+        onPress={() => handleEventPress(event._id)}
       >
-        <View style={styles.cardContent}>
-          <View style={styles.cardHeader}>
-            <View
-              style={[
-                styles.vaccineIcon,
-                { backgroundColor: getStatusBgColor(eventStatus) },
-              ]}
-            >
-              <Ionicons
-                name="medical"
-                size={24}
-                color={getStatusColor(eventStatus)}
-              />
-            </View>
-            <View
-              style={[
-                styles.statusContainer,
-                { backgroundColor: getStatusBgColor(eventStatus) },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.statusLabel,
-                  { color: getStatusColor(eventStatus) },
-                ]}
-              >
-                {getStatusText(eventStatus)}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={styles.eventTitle} numberOfLines={2}>
-            {item.eventName}
-          </Text>
-          <Text style={styles.vaccineName} numberOfLines={1}>
-            💉 {item.vaccineName}
-          </Text>
-
-          {item.description && (
-            <Text style={styles.eventDescription} numberOfLines={2}>
-              {item.description}
+        <View style={styles.eventHeader}>
+          <View
+            style={[styles.statusBadge, { backgroundColor: statusBgColor }]}
+          >
+            <Text style={[styles.statusText, { color: statusColor }]}>
+              {isPast ? "Đã kết thúc" : "Đang mở đăng ký"}
             </Text>
-          )}
+          </View>
+        </View>
 
-          <View style={styles.eventInfo}>
-            <View style={styles.infoRow}>
-              <Ionicons name="location-outline" size={16} color="#666" />
-              <Text style={styles.infoText} numberOfLines={1}>
-                {item.location}
-              </Text>
-            </View>
+        <View style={styles.eventContent}>
+          <Text style={styles.eventTitle}>{event.eventName}</Text>
+          <Text style={styles.vaccineName}>💉 {event.vaccineName}</Text>
+        </View>
 
-            <View style={styles.infoRow}>
-              <Ionicons name="calendar-outline" size={16} color="#666" />
-              <Text style={styles.infoText}>
-                Ngày tiêm: {formatDate(item.eventDate)}
-              </Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Ionicons name="time-outline" size={16} color="#666" />
-              <Text style={styles.infoText}>
-                Đăng ký: {formatDate(item.startRegistrationDate)} -{" "}
-                {formatDate(item.endRegistrationDate)}
-              </Text>
-            </View>
+        <View style={styles.eventCardInfo}>
+          <View style={styles.eventCardInfoRow}>
+            <Ionicons name="calendar-outline" size={20} color="#666" />
+            <Text style={styles.eventCardInfoText}>
+              {formatDate(event.eventDate)}
+            </Text>
+            <Text style={styles.eventCardInfoTextBold}>
+              {formatTime(event.eventDate)}
+            </Text>
           </View>
 
-          <View style={styles.cardFooter}>
-            {isRegistrationOpen && (
-              <TouchableOpacity
-                style={styles.registerEventButton}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  handleRegisterPress();
-                }}
-              >
-                <Text style={styles.registerEventButtonText}>Đăng ký</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={[
-                styles.detailButton,
-                { backgroundColor: getStatusColor(eventStatus) },
-              ]}
-            >
-              <Text style={styles.detailButtonText}>Chi tiết</Text>
-              <Ionicons name="chevron-forward" size={16} color="#fff" />
-            </TouchableOpacity>
+          <View style={styles.eventCardInfoRow}>
+            <Ionicons name="location-outline" size={20} color="#666" />
+            <Text style={styles.eventCardInfoText} numberOfLines={1}>
+              {event.location}
+            </Text>
+          </View>
+
+          <View style={styles.eventCardInfoRow}>
+            <Ionicons name="time-outline" size={20} color="#666" />
+            <Text style={styles.eventCardInfoText}>
+              Đăng ký từ: {formatDate(event.startRegistrationDate)} -{" "}
+              {formatDate(event.endRegistrationDate)}
+            </Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -447,6 +481,13 @@ export default function VaccinationsScreen() {
     </View>
   );
 
+  const upcomingEvents = vaccineEvents.filter(
+    (event) => new Date(event.eventDate) >= new Date()
+  );
+  const pastEvents = vaccineEvents.filter(
+    (event) => new Date(event.eventDate) < new Date()
+  );
+
   // Loading state
   if (isLoading && vaccineEvents.length === 0) {
     return (
@@ -484,6 +525,7 @@ export default function VaccinationsScreen() {
       </View>
 
       {renderSchoolYearSelector()}
+      {renderStudentSelection()}
 
       <View style={styles.tabContainer}>
         {renderTabButton("events", "Sự kiện", "calendar-outline")}
@@ -493,29 +535,54 @@ export default function VaccinationsScreen() {
 
       <View style={styles.content}>
         {activeTab === "events" && (
-          <FlatList
-            data={vaccineEvents}
-            renderItem={renderVaccineEventItem}
-            keyExtractor={(item) => `event-${item._id}`}
+          <ScrollView
+            style={styles.container}
+            contentContainerStyle={{ paddingBottom: 24 }}
             refreshControl={
               <RefreshControl
                 refreshing={isRefreshing}
                 onRefresh={refreshData}
-                colors={["#4A90E2"]}
-                tintColor="#4A90E2"
               />
             }
-            onEndReached={loadMoreData}
-            onEndReachedThreshold={0.1}
-            contentContainerStyle={styles.listContainer}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={() =>
-              renderEmptyState(
-                "Chưa có sự kiện tiêm chủng nào",
-                "calendar-outline"
-              )
-            }
-          />
+          >
+            {/* Upcoming Events Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleContainer}>
+                  <Ionicons name="calendar" size={24} color="#4A90E2" />
+                  <Text style={styles.sectionTitle}>Sự kiện sắp diễn ra</Text>
+                </View>
+                <Text style={styles.eventCount}>
+                  {upcomingEvents.length} sự kiện
+                </Text>
+              </View>
+
+              {upcomingEvents.length > 0 ? (
+                upcomingEvents.map(renderEventCard)
+              ) : (
+                <EmptyUpcoming />
+              )}
+            </View>
+
+            {/* Past Events Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleContainer}>
+                  <Ionicons name="time" size={24} color="#8e8e93" />
+                  <Text style={styles.sectionTitle}>Lịch sử tiêm chủng</Text>
+                </View>
+                <Text style={styles.eventCount}>
+                  {pastEvents.length} sự kiện
+                </Text>
+              </View>
+
+              {pastEvents.length > 0 ? (
+                pastEvents.map(renderEventCard)
+              ) : (
+                <EmptyHistory />
+              )}
+            </View>
+          </ScrollView>
         )}
 
         {activeTab === "sessions" && (
@@ -739,15 +806,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   eventTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 20,
+    fontWeight: "600",
     color: "#2c3e50",
-    marginBottom: 6,
+    marginBottom: 8,
+    lineHeight: 28,
   },
   vaccineName: {
-    fontSize: 14,
-    color: "#7f8c8d",
-    marginBottom: 8,
+    fontSize: 17,
+    color: "#34495e",
+    lineHeight: 24,
   },
   eventDescription: {
     fontSize: 13,
@@ -756,18 +824,29 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   eventInfo: {
-    marginBottom: 16,
+    padding: 16,
+    paddingTop: 8,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f2f2f7",
+    marginTop: 8,
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    gap: 12,
   },
   infoText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: "#666",
     flex: 1,
+    fontSize: 15,
+    color: "#666",
+    lineHeight: 22,
+  },
+  infoTextBold: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#2c3e50",
+    lineHeight: 22,
   },
   dateContainer: {
     flexDirection: "row",
@@ -843,16 +922,18 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   emptyState: {
-    flex: 1,
-    justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 60,
+    padding: 32,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    margin: 4,
   },
   emptyStateText: {
-    marginTop: 16,
     fontSize: 16,
     color: "#8e8e93",
     textAlign: "center",
+    marginTop: 16,
+    lineHeight: 24,
   },
   sessionCard: {
     backgroundColor: "#fff",
@@ -922,5 +1003,125 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4,
+  },
+  studentContainer: {
+    backgroundColor: "#fff",
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#2c3e50",
+    marginBottom: 10,
+  },
+  studentScrollContainer: {
+    paddingRight: 20,
+  },
+  studentCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+  },
+  selectedStudentCard: {
+    backgroundColor: "#E8F4FD",
+    borderColor: "#4A90E2",
+  },
+  studentName: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#8e8e93",
+  },
+  selectedStudentName: {
+    color: "#4A90E2",
+    fontWeight: "600",
+  },
+  section: {
+    padding: 16,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  sectionTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#2c3e50",
+    marginLeft: 8,
+  },
+  eventCount: {
+    fontSize: 14,
+    color: "#666",
+  },
+  eventCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    overflow: "hidden",
+  },
+  pastEventCard: {
+    opacity: 0.8,
+  },
+  eventHeader: {
+    padding: 16,
+    paddingBottom: 0,
+  },
+  statusBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  eventContent: {
+    padding: 16,
+    paddingTop: 12,
+  },
+  eventCardInfo: {
+    padding: 16,
+    paddingTop: 8,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f2f2f7",
+    marginTop: 8,
+  },
+  eventCardInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  eventCardInfoText: {
+    flex: 1,
+    fontSize: 15,
+    color: "#666",
+    lineHeight: 22,
+  },
+  eventCardInfoTextBold: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#2c3e50",
+    lineHeight: 22,
   },
 });

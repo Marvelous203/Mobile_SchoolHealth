@@ -76,13 +76,14 @@ export default function ParentHome() {
             const childInfo = {
               id: studentData._id,
               name: studentData.fullName,
-              class: studentData.classInfo?.name || "Lớp 1A1",
+              class: studentData.classInfo?.name || "Chưa phân lớp",
               avatar: studentData.avatar || "https://via.placeholder.com/60",
               healthStatus: "good", // Default status
               studentCode: studentData.studentCode,
               gender: studentData.gender,
               dob: studentData.dob,
               classId: studentData.classId,
+              classInfo: studentData.classInfo,
               parentInfos: studentData.parentInfos || [],
               recentActivity: "Khám sức khỏe định kỳ",
               lastCheckup: "15/06/2025",

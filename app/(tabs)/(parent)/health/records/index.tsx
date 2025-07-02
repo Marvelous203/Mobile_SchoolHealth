@@ -292,7 +292,7 @@ export default function HealthRecordsScreen() {
     const recordIds = allRecords.map((r: HealthRecord) => r._id);
 
     router.push({
-      pathname: "/(tabs)/(parent)/health/record-detail",
+      pathname: "/(tabs)/(parent)/health/records/detail",
       params: {
         recordId: record._id,
         studentName:

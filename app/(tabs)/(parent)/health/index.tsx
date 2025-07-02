@@ -44,7 +44,7 @@ export default function HealthScreen() {
       description: "Đăng ký tham gia tiêm chủng",
       icon: "syringe",
       color: "#52c41a",
-      route: "/(tabs)/(parent)/vaccinations/registration",
+      route: "/(tabs)/(parent)/vaccinations",
     },
     {
       id: "medicines",
