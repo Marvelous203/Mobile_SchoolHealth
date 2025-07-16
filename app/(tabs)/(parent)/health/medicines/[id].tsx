@@ -1,4 +1,5 @@
-import { api, MedicineSubmissionDetailResponse } from '@/lib/api'
+import { api,  } from '@/lib/api'
+import { MedicineSubmissionDetailResponse } from '@/lib/types'
 import { Ionicons } from '@expo/vector-icons'
 import { router, useLocalSearchParams } from 'expo-router'
 import React, { useEffect, useState } from 'react'
@@ -125,17 +126,17 @@ export default function MedicineSubmissionDetailScreen() {
             <View style={styles.infoRow}>
               <Ionicons name="person" size={20} color="#666" />
               <Text style={styles.infoLabel}>Họ tên:</Text>
-              <Text style={styles.infoValue}>{submission.parentId.fullName}</Text>
+              <Text style={styles.infoValue}>{submission.parent?.fullName || 'N/A'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Ionicons name="mail" size={20} color="#666" />
               <Text style={styles.infoLabel}>Email:</Text>
-              <Text style={styles.infoValue}>{submission.parentId.email}</Text>
+              <Text style={styles.infoValue}>{submission.parent?.email || 'N/A'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Ionicons name="call" size={20} color="#666" />
               <Text style={styles.infoLabel}>Điện thoại:</Text>
-              <Text style={styles.infoValue}>{submission.parentId.phone}</Text>
+              <Text style={styles.infoValue}>{submission.parent?.phone || 'N/A'}</Text>
             </View>
           </View>
         </View>
@@ -147,20 +148,44 @@ export default function MedicineSubmissionDetailScreen() {
             <View style={styles.infoRow}>
               <Ionicons name="medical" size={20} color="#666" />
               <Text style={styles.infoLabel}>Họ tên:</Text>
-              <Text style={styles.infoValue}>{submission.schoolNurseId.fullName}</Text>
+              <Text style={styles.infoValue}>{submission.schoolNurse?.fullName || 'N/A'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Ionicons name="mail" size={20} color="#666" />
               <Text style={styles.infoLabel}>Email:</Text>
-              <Text style={styles.infoValue}>{submission.schoolNurseId.email}</Text>
+              <Text style={styles.infoValue}>{submission.schoolNurse?.email || 'N/A'}</Text>
             </View>
             <View style={styles.infoRow}>
               <Ionicons name="call" size={20} color="#666" />
               <Text style={styles.infoLabel}>Điện thoại:</Text>
-              <Text style={styles.infoValue}>{submission.schoolNurseId.phone}</Text>
+              <Text style={styles.infoValue}>{submission.schoolNurse?.phone || 'N/A'}</Text>
             </View>
           </View>
         </View>
+
+        {/* Add student information section */}
+        {submission.student && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Thông tin học sinh</Text>
+            <View style={styles.infoCard}>
+              <View style={styles.infoRow}>
+                <Ionicons name="school" size={20} color="#666" />
+                <Text style={styles.infoLabel}>Họ tên:</Text>
+                <Text style={styles.infoValue}>{submission.student.fullName}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Ionicons name="card" size={20} color="#666" />
+                <Text style={styles.infoLabel}>Mã học sinh:</Text>
+                <Text style={styles.infoValue}>{submission.student.studentCode}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Ionicons name="home" size={20} color="#666" />
+                <Text style={styles.infoLabel}>Lớp:</Text>
+                <Text style={styles.infoValue}>{submission.student.classId?.name || 'N/A'}</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Danh sách thuốc */}
         <View style={styles.section}>

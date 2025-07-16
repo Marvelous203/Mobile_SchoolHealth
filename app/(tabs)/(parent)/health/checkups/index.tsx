@@ -1,7 +1,7 @@
 "use client";
 
 import { api } from "@/lib/api";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -387,10 +387,23 @@ export default function HealthCheckupsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Thêm header với button back */}
       <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => router.back()}
+        >
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Khám sức khỏe</Text>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={handleRegisterPress}
+        >
+          <MaterialIcons name="add" size={24} color="#1890ff" />
+        </TouchableOpacity>
       </View>
-
+      
       {renderSchoolYearSelector()}
 
       <View style={styles.tabContainer}>
@@ -453,21 +466,33 @@ export default function HealthCheckupsScreen() {
   );
 }
 
+// Thêm styles cho header
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: '#f8f9fa',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 20,
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: '#f0f0f0',
+  },
+  backButton: {
+    padding: 8,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+    textAlign: 'center',
+  },
+  addButton: {
+    padding: 8,
   },
   schoolYearContainer: {
     backgroundColor: "#fff",

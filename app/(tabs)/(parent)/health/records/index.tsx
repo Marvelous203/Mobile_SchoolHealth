@@ -521,8 +521,34 @@ export default function HealthRecordsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {renderHeader()}
-
+      {/* Thêm header với button back */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => router.back()}
+        >
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Hồ sơ sức khỏe</Text>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => router.push('/health/records/create')}
+        >
+          <MaterialIcons name="add" size={24} color="#1890ff" />
+        </TouchableOpacity>
+      </View>
+      
+      {/* Search bar */}
+      <View style={styles.searchContainer}>
+        <MaterialIcons name="search" size={20} color="#999" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Tìm kiếm hồ sơ..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+      
       {healthRecords.length === 0 ? (
         renderEmpty()
       ) : (
@@ -550,89 +576,49 @@ export default function HealthRecordsScreen() {
   );
 }
 
+// Thêm styles cho header
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fc",
+    backgroundColor: '#f8f9fa',
   },
   header: {
-    backgroundColor: "#667eea",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  headerGradient: {
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    justifyContent: "space-between",
-  },
-  headerTitleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  headerIconContainer: {
-    position: "relative",
-  },
-  headerIconBadge: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 4,
-  },
-  headerText: {
-    marginLeft: 16,
+  backButton: {
+    padding: 8,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: "rgba(255, 255, 255, 0.9)",
-    textAlign: "center",
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+    textAlign: 'center',
   },
   addButton: {
-    borderRadius: 22,
-    overflow: "hidden",
-  },
-  addButtonGradient: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
+    padding: 8,
   },
   searchContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  searchInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    margin: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   searchInput: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 8,
     fontSize: 16,
-    color: "#262626",
   },
   listContainer: {
     paddingVertical: 20,

@@ -1,5 +1,5 @@
 import { api, MedicineSubmission } from '@/lib/api'
-import { Ionicons } from '@expo/vector-icons'
+import { Ionicons, MaterialIcons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
 import React, { useEffect, useState } from 'react'
@@ -141,8 +141,7 @@ export default function MedicinesScreen() {
     const date = new Date(dateString)
     return date.toLocaleDateString('vi-VN')
   }
-
-  const renderMedicineItem = (item: MedicineSubmission) => (
+ const renderMedicineItem = (item: MedicineSubmission) => (
     <TouchableOpacity 
       key={item._id} 
       style={styles.medicineItem}
@@ -183,6 +182,23 @@ export default function MedicinesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Thêm header với button back */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => router.back()}
+        >
+          <MaterialIcons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Quản lý thuốc</Text>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={handleCreateMedicine}
+        >
+          <MaterialIcons name="add" size={24} color="#1890ff" />
+        </TouchableOpacity>
+      </View>
+      
       <ScrollView 
         style={styles.content}
         refreshControl={
@@ -258,7 +274,29 @@ export default function MedicinesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8f9fa',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+    textAlign: 'center',
+  },
+  addButton: {
+    padding: 8,
   },
   content: {
     flex: 1,

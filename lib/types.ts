@@ -335,15 +335,26 @@ export interface MedicineSubmissionDetailResponse {
   success: boolean
   data: {
     _id: string
-    parentId: {
+    parent: {
       _id: string
       email: string
       fullName: string
       phone: string
       role: string
     }
-    studentId: any
-    schoolNurseId: {
+    student: {
+      _id: string
+      fullName: string
+      studentCode: string
+      gender: string
+      dob: string
+      classId: {
+        _id: string
+        name: string
+        schoolYear: string
+      }
+    }
+    schoolNurse: {
       _id: string
       email: string
       fullName: string
@@ -566,7 +577,44 @@ export interface VaccineEvent {
   startRegistrationDate: string
   endRegistrationDate: string
   eventDate: string
-  status: "upcoming" | "ongoing" | "completed"
+  status: "pending" | "approved" | "cancelled" | "rejected" | "completed"
+  createdAt: string
+  updatedAt: string
+}
+
+// Vaccine Registration Search interfaces
+export interface VaccineRegistrationSearchParams {
+  pageNum: number
+  pageSize: number
+  studentId?: string
+  parentId?: string
+  schoolYear?: string
+  status?: "pending" | "approved" | "rejected"
+}
+
+export interface VaccineRegistrationSearchResponse {
+  pageData: VaccineRegistrationDetail[]
+  pageInfo: {
+    pageNum: number
+    pageSize: number
+    totalItems: number
+    totalPages: number
+  }
+}
+
+export interface VaccineRegistrationDetail {
+  _id: string
+  studentId: string
+  parentId: string
+  eventId: string
+  status: "pending" | "approved" | "rejected"
+  studentName: string
+  parentName: string
+  eventName?: string
+  vaccineName?: string
+  consentDate?: string
+  cancellationReason?: string
+  notes?: string
   createdAt: string
   updatedAt: string
 }

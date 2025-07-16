@@ -428,14 +428,6 @@ export const api = {
         return apiCall('/medicine/submissions?status=pending');
     },
 
-    getVaccinationHistory: async (studentId: string) => {
-        return apiCall(`/students/${studentId}/vaccination-history`);
-    },
-
-    getHealthCheckHistory: async (studentId: string) => {
-        return apiCall(`/students/${studentId}/health-check-history`);
-    },
-
     // User Profile - Get user by ID (works for all roles)
     getUserProfile: async (userId: string): Promise<GetUserProfileResponse> => {
         try {
@@ -1196,7 +1188,6 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
         pageNum: number; 
         pageSize: number; 
         studentId?: string; 
-        eventId?: string; 
         parentId?: string;
         schoolYear?: string;
         status?: "pending" | "approved" | "rejected";
@@ -1239,7 +1230,6 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
                 pageNum: finalParams.pageNum.toString(),
                 pageSize: finalParams.pageSize.toString(),
                 ...(finalParams.studentId && { studentId: finalParams.studentId }),
-                ...(finalParams.eventId && { eventId: finalParams.eventId }),
                 ...(finalParams.parentId && { parentId: finalParams.parentId }),
                 ...(finalParams.schoolYear && { schoolYear: finalParams.schoolYear }),
                 ...(finalParams.status && { status: finalParams.status })
@@ -1492,8 +1482,8 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
                 pageInfo: {
                     pageNum: params.pageNum,
                     pageSize: params.pageSize,
-                    totalItems: 0,
-                    totalPages: 0
+                    totalItems: 0,  // ✅ Thêm totalItems
+                    totalPages: 0   // ✅ Thêm totalPages
                 }
             }
         }

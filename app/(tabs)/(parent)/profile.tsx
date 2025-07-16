@@ -58,7 +58,7 @@ export default function ParentProfile() {
     {
       icon: "medical-services",
       title: "Khám sức khỏe",
-      route: "/checkups",
+      route: "health/checkups/history", // Thay đổi route để trỏ đến history
       count: 0,
     },
     {
@@ -70,7 +70,7 @@ export default function ParentProfile() {
     {
       icon: "medication",
       title: "Uống thuốc",
-      route: "/medicines",
+      route: "/health/medicines/history", // Thay đổi route này
       count: 0,
     },
     {
@@ -89,46 +89,53 @@ export default function ParentProfile() {
         pageNum: 1,
         pageSize: 1,
       });
-
+  
       // Fetch appointment count
       const appointmentResponse = await api.searchAppointments({
         parentId,
         pageNum: 1,
         pageSize: 1,
       });
-
+  
       // Fetch medicine count
       const medicineResponse = await api.searchMedicineSubmissions({
         parentId,
         pageNum: 1,
         pageSize: 1,
       });
-
+  
       // Fetch vaccination count
       const vaccinationResponse = await api.searchVaccineRegistrations({
         parentId,
         pageNum: 1,
         pageSize: 1,
       });
-
+  
       setServiceHistory((prev) =>
         prev.map((service) => {
-          if (service.route === "/checkups") {
-            return { ...service, count: checkupResponse.pageInfo.totalItems };
+          // Sửa route để khớp với serviceHistory
+          if (service.route === "health/checkups/history") {
+            return { 
+              ...service, 
+              count: checkupResponse?.pageInfo?.totalItems || 0 
+            };
           }
           if (service.route === "/appointments") {
             return {
               ...service,
-              count: appointmentResponse.pageInfo.totalItems,
+              count: appointmentResponse?.pageInfo?.totalItems || 0,
             };
           }
-          if (service.route === "/medicines") {
-            return { ...service, count: medicineResponse.pageInfo.totalItems };
+          if (service.route === "/health/medicines/history") {
+            return { 
+              ...service, 
+              count: medicineResponse?.pageInfo?.totalItems || 0 
+            };
           }
           if (service.route === "/vaccinations") {
             return {
               ...service,
-              count: vaccinationResponse.pageInfo.totalItems,
+              count: vaccinationResponse?.pageInfo?.totalItems || 0,
             };
           }
           return service;

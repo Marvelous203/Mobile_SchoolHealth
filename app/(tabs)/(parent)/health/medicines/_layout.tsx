@@ -42,6 +42,19 @@ export default function MedicinesLayout() {
           },
         }} 
       />
+      <Stack.Screen 
+        name="history" 
+        options={{ 
+          title: 'Lịch sử uống thuốc',
+          headerStyle: {
+            backgroundColor: '#4CAF50',
+          },
+          headerTintColor: '#fff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }} 
+      />
     </Stack>
   )
 }

@@ -18,7 +18,7 @@ export default function VaccinationsLayout() {
           presentation: "modal",
         }}
       />
-      <Stack.Screen
+      {/* <Stack.Screen
         name="details"
         options={{
           title: "Vaccination Details",
@@ -28,14 +28,14 @@ export default function VaccinationsLayout() {
       <Stack.Screen
         name="event-detail"
         options={{
-          title: "Chi tiết sự kiện tiêm chủng",
+          title: "Event Detail",
           headerShown: false,
         }}
-      />
+      /> */}
       <Stack.Screen
-        name="registration"
+        name="registration-detail"
         options={{
-          title: "Đăng ký tiêm chủng",
+          title: "Registration Detail",
           headerShown: false,
         }}
       />
