@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
   api,
   CreateMedicineSubmissionRequest,
@@ -5,9 +6,8 @@ import {
   SchoolNurse,
 } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -26,14 +26,82 @@ import {
 // Import auth context
 import { useAuth } from "@/lib/auth";
 
+// Thêm interface và helper functions mới
+interface ParsedDosage {
+  amount: number;
+  unit: string;
+  type: 'solid' | 'liquid' | 'powder'; // viên/gói vs ml/lít
+}
+
+// Hàm parse dosage thông minh
+const parseDosage = (dosageString: string): ParsedDosage | null => {
+  if (!dosageString.trim()) return null;
+  
+  // Regex để extract số và đơn vị
+  const match = dosageString.match(/(\d+(?:\.\d+)?)\s*(viên|ml|gói|thìa|lít|g|mg|mcg|cc)/i);
+  
+  if (!match) return null;
+  
+  const amount = parseFloat(match[1]);
+  const unit = match[2].toLowerCase();
+  
+  // Phân loại loại thuốc
+  const liquidUnits = ['ml', 'lít', 'cc'];
+  const solidUnits = ['viên', 'gói', 'thìa', 'g', 'mg', 'mcg'];
+  
+  let type: 'solid' | 'liquid' | 'powder';
+  if (liquidUnits.includes(unit)) {
+    type = 'liquid';
+  } else if (solidUnits.includes(unit)) {
+    type = 'solid';
+  } else {
+    type = 'powder'; // default
+  }
+  
+  return { amount, unit, type };
+};
+
+// Hàm tính toán quantity thông minh dựa trên loại thuốc
+const calculateSmartQuantity = (dosage: string, timesPerDay: number, daysOfUse: number): number => {
+  const parsed = parseDosage(dosage);
+  
+  if (!parsed) {
+    // Fallback: tính theo cách cũ
+    return timesPerDay * daysOfUse;
+  }
+  
+  const totalDosageNeeded = parsed.amount * timesPerDay * daysOfUse;
+  
+  // Đối với thuốc lỏng, làm tròn lên để đảm bảo đủ
+  if (parsed.type === 'liquid') {
+    return Math.ceil(totalDosageNeeded);
+  }
+  
+  // Đối với thuốc rắn (viên, gói), làm tròn lên
+  return Math.ceil(totalDosageNeeded);
+};
+
+
+
 export default function CreateMedicineScreen() {
+  const params = useLocalSearchParams();
   const [loading, setLoading] = useState(false);
+  const [showCustomTimesInput, setShowCustomTimesInput] = useState(false);
   const [loadingNurses, setLoadingNurses] = useState(false);
   const [loadingUserData, setLoadingUserData] = useState(true);
   const [showNurseModal, setShowNurseModal] = useState(false);
   const [schoolNurses, setSchoolNurses] = useState<SchoolNurse[]>([]);
   const [selectedNurse, setSelectedNurse] = useState<SchoolNurse | null>(null);
   const [nurseSearchQuery, setNurseSearchQuery] = useState("");
+  const dosageSuggestions = [
+    "1 viên",
+    "½ viên", 
+    "2 viên",
+    "5ml",
+    "10ml",
+    "1 gói",
+    "Theo chỉ định"
+  ];
   const { user } = useAuth();
 
   // User and student data
@@ -50,23 +118,77 @@ export default function CreateMedicineScreen() {
       quantity: 1,
       timesPerDay: 1,
       timeSlots: ["08:00"],
-      startDate: new Date().toISOString().split("T")[0],
-      endDate: "",
       note: "",
       reason: "",
     },
   ]);
 
   const [currentMedicineIndex, setCurrentMedicineIndex] = useState(0);
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  
+  // Thêm state cho smart calculation
+  const [showDosageHelper, setShowDosageHelper] = useState(false);
+  const [daysOfUse, setDaysOfUse] = useState(1);
 
   useEffect(() => {
     loadUserAndStudentData();
-    loadSchoolNurses();
-  }, []);
+  }, []); // Chỉ gọi một lần khi component mount
 
-  const loadUserAndStudentData = async () => {
+  useEffect(() => {
+    loadSchoolNurses();
+  }, []); // Chỉ gọi một lần khi component mount
+
+  useEffect(() => {
+    // Xử lý dữ liệu tái sử dụng
+    if (params.reuse === 'true') {
+      loadReuseData()
+    }
+  }, [params.reuse]); // Chỉ khi params.reuse thay đổi
+
+  const loadReuseData = async () => {
+    try {
+      const reuseDataString = await AsyncStorage.getItem('medicineReuseData')
+      if (reuseDataString) {
+        const reuseData = JSON.parse(reuseDataString)
+        if (reuseData.medicines) {
+          // Chuyển đổi timeSlots từ ISO string về HH:MM format
+          const processedMedicines = reuseData.medicines.map(medicine => ({
+            ...medicine,
+            timeSlots: medicine.timeSlots.map(timeSlot => {
+              try {
+                const date = new Date(timeSlot)
+                if (isNaN(date.getTime())) {
+                  // Nếu không phải Date object, có thể đã là string time như "08:00"
+                  return timeSlot
+                }
+                // Chuyển đổi về format HH:MM
+                return date.toLocaleTimeString('vi-VN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false
+                })
+              } catch {
+                return timeSlot
+              }
+            })
+          }))
+          
+          setMedicines(processedMedicines)
+          console.log('✅ Reuse data loaded and processed:', processedMedicines)
+        }
+        // Xóa dữ liệu sau khi sử dụng
+        await AsyncStorage.removeItem('medicineReuseData')
+      }
+    } catch (error) {
+      console.error('Error loading reuse data:', error)
+    }
+  }
+
+  const loadUserAndStudentData = useCallback(async () => {
+    // Tránh gọi lại nếu đã có dữ liệu
+    if (userProfile && students.length > 0) {
+      return
+    }
+
     try {
       setLoadingUserData(true);
       console.log("🔄 Loading user and student data...");
@@ -109,13 +231,33 @@ export default function CreateMedicineScreen() {
     } finally {
       setLoadingUserData(false);
     }
-  };
+  }, [userProfile, students.length]); // Dependency array để tránh gọi lại không cần thiết
 
-  const loadSchoolNurses = async (query?: string) => {
+  const loadSchoolNurses = useCallback(async (query?: string) => {
     try {
       setLoadingNurses(true);
       const response = await api.searchSchoolNurses(1, 20, query);
       setSchoolNurses(response.pageData);
+
+      // Tự động chọn y tá từ reuse data chỉ khi cần thiết
+      if (params.reuse === 'true' && !selectedNurse) {
+        try {
+          const reuseDataString = await AsyncStorage.getItem('medicineReuseData')
+          if (reuseDataString) {
+            const reuseData = JSON.parse(reuseDataString)
+            if (reuseData.schoolNurseId) {
+              const targetNurse = response.pageData.find(nurse => nurse._id === reuseData.schoolNurseId)
+              if (targetNurse) {
+                setSelectedNurse(targetNurse)
+                console.log('✅ Nurse auto-selected from reuse data:', targetNurse.fullName)
+                return
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error setting nurse from reuse data:', error)
+        }
+      }
 
       if (!selectedNurse && response.pageData.length > 0) {
         setSelectedNurse(response.pageData[0]);
@@ -126,7 +268,7 @@ export default function CreateMedicineScreen() {
     } finally {
       setLoadingNurses(false);
     }
-  };
+  }, [params.reuse, selectedNurse]);
 
   const handleNurseSearch = (query: string) => {
     setNurseSearchQuery(query);
@@ -145,12 +287,15 @@ export default function CreateMedicineScreen() {
   // Helper functions for medicine management
   const getCurrentMedicine = () => medicines[currentMedicineIndex];
 
+  // Cập nhật hàm updateCurrentMedicine
   const updateCurrentMedicine = (updates: Partial<MedicineItem>) => {
     const newMedicines = [...medicines];
-    newMedicines[currentMedicineIndex] = {
+    const updatedMedicine = {
       ...newMedicines[currentMedicineIndex],
       ...updates,
     };
+    
+    newMedicines[currentMedicineIndex] = updatedMedicine;
     setMedicines(newMedicines);
   };
 
@@ -162,8 +307,6 @@ export default function CreateMedicineScreen() {
       quantity: 1,
       timesPerDay: 1,
       timeSlots: ["08:00"],
-      startDate: new Date().toISOString().split("T")[0],
-      endDate: "",
       note: "",
       reason: "",
     };
@@ -184,9 +327,19 @@ export default function CreateMedicineScreen() {
   };
 
   const handleTimeSlotChange = (index: number, value: string) => {
+    // Validation format HH:MM
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    
     const currentMedicine = getCurrentMedicine();
     const newTimeSlots = [...currentMedicine.timeSlots];
     newTimeSlots[index] = value;
+    
+    // Hiển thị warning nếu format không đúng
+    if (value && !timeRegex.test(value)) {
+      // Có thể thêm state để hiển thị warning
+      console.warn('Invalid time format. Please use HH:MM format.');
+    }
+    
     updateCurrentMedicine({ timeSlots: newTimeSlots });
   };
 
@@ -220,24 +373,6 @@ export default function CreateMedicineScreen() {
         setCurrentMedicineIndex(i);
         return;
       }
-
-      if (!medicine.endDate) {
-        Alert.alert(
-          "Lỗi",
-          `Vui lòng chọn ngày kết thúc cho thuốc thứ ${i + 1}`
-        );
-        setCurrentMedicineIndex(i);
-        return;
-      }
-
-      if (new Date(medicine.endDate) <= new Date(medicine.startDate)) {
-        Alert.alert(
-          "Lỗi",
-          `Ngày kết thúc phải sau ngày bắt đầu cho thuốc thứ ${i + 1}`
-        );
-        setCurrentMedicineIndex(i);
-        return;
-      }
     }
 
     if (!selectedNurse) {
@@ -256,14 +391,63 @@ export default function CreateMedicineScreen() {
     setLoading(true);
 
     try {
+      // Format medicines data đơn giản hơn
+      const formattedMedicines = medicines.map(medicine => {
+        // Ensure timeSlots is an array of strings first
+        let timeSlots: string[];
+        if (typeof medicine.timeSlots === 'string') {
+          try {
+            timeSlots = JSON.parse(medicine.timeSlots);
+          } catch {
+            timeSlots = [medicine.timeSlots];
+          }
+        } else {
+          timeSlots = medicine.timeSlots;
+        }
+
+        // Convert timeSlots to Date objects for backend (chỉ giờ, không cần ngày cụ thể)
+        const timeSlotsAsDateObjects = timeSlots.map(timeSlot => {
+          const [hours, minutes] = timeSlot.split(':');
+          const date = new Date();
+          date.setUTCHours(parseInt(hours), parseInt(minutes), 0, 0);
+          return date.toISOString();
+        });
+
+        // Create slotStatus with proper Date objects
+        const slotStatus = timeSlots.map(timeSlot => {
+          const [hours, minutes] = timeSlot.split(':');
+          const date = new Date();
+          date.setUTCHours(parseInt(hours), parseInt(minutes), 0, 0);
+          
+          return {
+            time: date.toISOString(),
+            status: 'pending' as const,
+            administeredBy: null,
+            notes: ''
+          };
+        });
+        
+        return {
+          name: medicine.name,
+          dosage: medicine.dosage,
+          usageInstructions: medicine.usageInstructions,
+          quantity: medicine.quantity,
+          timesPerDay: medicine.timesPerDay,
+          timeSlots: timeSlotsAsDateObjects,
+          note: medicine.note,
+          reason: medicine.reason,
+          slotStatus: slotStatus
+        };
+      });
+
       const request: CreateMedicineSubmissionRequest = {
         parentId: userProfile._id,
         studentId: selectedStudent._id,
         schoolNurseId: selectedNurse._id,
-        medicines: medicines,
+        medicines: formattedMedicines,
       };
 
-      console.log("💊 Creating medicine submission:", request);
+      console.log("💊 Creating medicine submission:", JSON.stringify(request, null, 2));
 
       const response = await api.createMedicineSubmission(request);
       console.log("📋 API Response:", response);
@@ -477,12 +661,45 @@ export default function CreateMedicineScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Liều lượng</Text>
-              <TextInput
-                style={styles.input}
-                value={currentMedicine.dosage}
-                onChangeText={(text) => updateCurrentMedicine({ dosage: text })}
-                placeholder="Ví dụ: 1 viên, 5ml"
-              />
+              <View style={styles.dosageContainer}>
+                <TextInput
+                  style={[styles.input, styles.dosageInput]}
+                  value={currentMedicine.dosage}
+                  onChangeText={(text) => updateCurrentMedicine({ dosage: text })}
+                  placeholder="Ví dụ: 1 viên, 5ml, 2 gói"
+                />
+                <TouchableOpacity 
+                  style={styles.helperButton}
+                  onPress={() => setShowDosageHelper(!showDosageHelper)}
+                >
+                  <Ionicons name="help-circle" size={20} color="#4CAF50" />
+                </TouchableOpacity>
+              </View>
+              
+              {showDosageHelper && (
+                <View style={styles.dosageHelper}>
+                  <Text style={styles.helperTitle}>Hướng dẫn nhập liều lượng:</Text>
+                  <Text style={styles.helperText}>• Thuốc viên: "1 viên", "2 viên"</Text>
+                  <Text style={styles.helperText}>• Thuốc lỏng: "5ml", "10ml", "1 thìa"</Text>
+                  <Text style={styles.helperText}>• Thuốc bột: "1 gói", "2g"</Text>
+                </View>
+              )}
+              
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                style={styles.suggestionsScroll}
+              >
+                {dosageSuggestions.map((suggestion, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.suggestionChip}
+                    onPress={() => updateCurrentMedicine({ dosage: suggestion })}
+                  >
+                    <Text style={styles.suggestionText}>{suggestion}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
 
             <View style={styles.inputGroup}>
@@ -499,45 +716,113 @@ export default function CreateMedicineScreen() {
 
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={styles.label}>Số lượng</Text>
-                <TextInput
-                  style={styles.input}
-                  value={currentMedicine.quantity.toString()}
-                  onChangeText={(text) =>
-                    updateCurrentMedicine({ quantity: parseInt(text) || 0 })
-                  }
-                  keyboardType="numeric"
-                  placeholder="10"
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={styles.label}>Số lần/ngày</Text>
-                <TextInput
-                  style={styles.input}
-                  value={currentMedicine.timesPerDay.toString()}
-                  onChangeText={(text) => {
-                    const times = parseInt(text) || 1;
-                    const defaultTimes = {
-                      1: ["08:00"],
-                      2: ["08:00", "20:00"],
-                      3: ["08:00", "12:00", "20:00"],
-                      4: ["08:00", "12:00", "16:00", "20:00"],
-                      5: ["08:00", "11:00", "14:00", "17:00", "20:00"],
-                      6: ["08:00", "10:00", "12:00", "14:00", "16:00", "20:00"],
-                    };
-
-                    updateCurrentMedicine({
-                      timesPerDay: times,
-                      timeSlots: defaultTimes[
-                        times as keyof typeof defaultTimes
-                      ] || ["08:00"],
-                    });
-                  }}
-                  keyboardType="numeric"
-                  placeholder="3"
-                />
+                <View style={styles.radioGroup}>
+                  {[1, 2, 3].map((times) => (
+                    <TouchableOpacity
+                      key={times}
+                      style={[styles.radioButton, currentMedicine.timesPerDay === times && styles.radioButtonSelected]}
+                      onPress={() => {
+                        const defaultTimes = {
+                          1: ["08:00"],
+                          2: ["08:00", "20:00"],
+                          3: ["08:00", "12:00", "20:00"],
+                        };
+                        
+                        const currentMedicine = getCurrentMedicine();
+                        let newTimeSlots = [...currentMedicine.timeSlots];
+                        
+                        // Chỉ cập nhật timeSlots khi cần thiết
+                        if (times > currentMedicine.timeSlots.length) {
+                          // Thêm thời gian mặc định cho các slot mới
+                          const defaultSlots = defaultTimes[times as keyof typeof defaultTimes];
+                          newTimeSlots = [
+                            ...currentMedicine.timeSlots,
+                            ...defaultSlots.slice(currentMedicine.timeSlots.length)
+                          ];
+                        } else if (times < currentMedicine.timeSlots.length) {
+                          // Giữ lại các thời gian đã tùy chỉnh, chỉ cắt bớt
+                          newTimeSlots = currentMedicine.timeSlots.slice(0, times);
+                        }
+                        // Nếu times === currentMedicine.timeSlots.length thì giữ nguyên
+                        
+                        updateCurrentMedicine({
+                          timesPerDay: times,
+                          timeSlots: newTimeSlots,
+                        });
+                      }}
+                    >
+                      <View style={[styles.radio, currentMedicine.timesPerDay === times && styles.radioSelected]} />
+                      <Text style={styles.radioText}>{times} lần/ngày</Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={[styles.radioButton, currentMedicine.timesPerDay > 3 && styles.radioButtonSelected]}
+                    onPress={() => setShowCustomTimesInput(true)}
+                  >
+                    <View style={[styles.radio, currentMedicine.timesPerDay > 3 && styles.radioSelected]} />
+                    <Text style={styles.radioText}>Khác</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
+
+
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Tổng số lượng cần cấp</Text>
+              <TextInput
+                style={[styles.input]}
+                value={currentMedicine.quantity.toString()}
+                onChangeText={(text) => {
+                  const quantity = parseInt(text) || 0;
+                  updateCurrentMedicine({ quantity });
+                }}
+                keyboardType="numeric"
+                placeholder="15"
+              />
+              
+              <View style={styles.smartCalculationContainer}>
+                <TouchableOpacity 
+                  style={styles.smartCalculateButton}
+                  onPress={() => {
+                    const smartQuantity = calculateSmartQuantity(
+                      currentMedicine.dosage,
+                      currentMedicine.timesPerDay,
+                      daysOfUse
+                    );
+                    updateCurrentMedicine({ quantity: smartQuantity });
+                  }}
+                >
+                  <Text style={styles.smartCalculateText}>Tính toán thông minh</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {(() => {
+                const parsed = parseDosage(currentMedicine.dosage);
+                if (parsed && parsed.amount > 0) {
+                  const dailyDosage = parsed.amount * currentMedicine.timesPerDay;
+                  const calculatedDays = Math.ceil(currentMedicine.quantity / dailyDosage);
+                  
+                  return (
+                    <View style={styles.calculationInfo}>
+                      <Text style={styles.calculationText}>
+                        📊 Tính toán: {currentMedicine.quantity} {parsed.unit} ÷ ({parsed.amount} {parsed.unit} × {currentMedicine.timesPerDay} lần/ngày) = {calculatedDays} ngày
+                      </Text>
+                      {parsed.type === 'liquid' && (
+                        <Text style={styles.liquidWarning}>
+                          💧 Thuốc lỏng: Nên chuẩn bị thêm 10-20% để đảm bảo đủ dùng
+                        </Text>
+                      )}
+                    </View>
+                  );
+                }
+                return (
+                  <Text style={styles.helperText}>
+                    Nhập liều lượng để tự động tính toán số ngày sử dụng
+                  </Text>
+                );
+              })()} 
             </View>
           </View>
 
@@ -576,39 +861,7 @@ export default function CreateMedicineScreen() {
             ))}
           </View>
 
-          {/* Date Selection */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Thời gian sử dụng</Text>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Ngày bắt đầu</Text>
-              <TouchableOpacity
-                style={styles.dateInput}
-                onPress={() => setShowStartDatePicker(true)}
-              >
-                <Text style={styles.dateText}>{currentMedicine.startDate}</Text>
-                <Ionicons name="calendar" size={20} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Ngày kết thúc *</Text>
-              <TouchableOpacity
-                style={styles.dateInput}
-                onPress={() => setShowEndDatePicker(true)}
-              >
-                <Text
-                  style={[
-                    styles.dateText,
-                    !currentMedicine.endDate && styles.placeholder,
-                  ]}
-                >
-                  {currentMedicine.endDate || "Chọn ngày"}
-                </Text>
-                <Ionicons name="calendar" size={20} color="#666" />
-              </TouchableOpacity>
-            </View>
-          </View>
 
           {/* Notes */}
           <View style={styles.section}>
@@ -702,49 +955,107 @@ export default function CreateMedicineScreen() {
           </SafeAreaView>
         </Modal>
 
-        {/* Date Pickers */}
-        {showStartDatePicker && (
-          <DateTimePicker
-            value={new Date(currentMedicine.startDate)}
-            mode="date"
-            display="default"
-            onChange={(event, selectedDate) => {
-              setShowStartDatePicker(false);
-              if (selectedDate) {
-                updateCurrentMedicine({
-                  startDate: selectedDate.toISOString().split("T")[0],
-                });
-              }
-            }}
-          />
-        )}
 
-        {showEndDatePicker && (
-          <DateTimePicker
-            value={
-              currentMedicine.endDate
-                ? new Date(currentMedicine.endDate)
-                : new Date()
-            }
-            mode="date"
-            display="default"
-            minimumDate={new Date(currentMedicine.startDate)}
-            onChange={(event, selectedDate) => {
-              setShowEndDatePicker(false);
-              if (selectedDate) {
-                updateCurrentMedicine({
-                  endDate: selectedDate.toISOString().split("T")[0],
-                });
-              }
-            }}
-          />
-        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  radioGroup: {
+    marginTop: 8,
+  },
+  radioButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  radioButtonSelected: {
+    backgroundColor: '#f0fff4',
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioSelected: {
+    backgroundColor: '#4CAF50',
+  },
+  radioText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
+  dosageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  dosageInput: {
+    flex: 1,
+    marginRight: 8,
+    marginBottom: 0,
+  },
+  helperButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  dosageHelper: {
+    backgroundColor: '#f0f8f0',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#4CAF50',
+  },
+  helperTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2E7D32',
+    marginBottom: 4,
+  },
+  calculationInfo: {
+    backgroundColor: '#f8f9fa',
+    padding: 10,
+    borderRadius: 6,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  calculationText: {
+    fontSize: 13,
+    color: '#495057',
+    lineHeight: 18,
+  },
+  liquidWarning: {
+    fontSize: 12,
+    color: '#fd7e14',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  suggestionsScroll: {
+    flexGrow: 0,
+  },
+  suggestionChip: {
+    backgroundColor: '#e8f5e8',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  suggestionText: {
+    color: '#4CAF50',
+    fontSize: 14,
+  },
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
@@ -1075,5 +1386,39 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  autoCalculationInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0fff4",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: "#4CAF50",
+  },
+  autoCalculationText: {
+    fontSize: 12,
+    color: "#4CAF50",
+    marginLeft: 8,
+    flex: 1,
+  },
+  smartCalculationContainer: {
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  smartCalculateButton: {
+    backgroundColor: "#e8f5e8",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#4CAF50",
+    alignItems: "center",
+  },
+  smartCalculateText: {
+    color: "#4CAF50",
+    fontSize: 14,
+    fontWeight: "500",
   },
 });

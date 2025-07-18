@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import { api, getCurrentUserId } from "@/lib/api";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -6,9 +6,11 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -31,10 +33,38 @@ interface HealthCheckEvent {
 
 export default function HealthCheckDetailScreen() {
   const router = useRouter();
-  const { eventId } = useLocalSearchParams<{ eventId: string }>();
+  const { eventId, studentId, studentName } = useLocalSearchParams<{ 
+    eventId: string;
+    studentId: string;
+    studentName: string;
+  }>();
 
   const [isLoading, setIsLoading] = useState(true);
   const [event, setEvent] = useState<HealthCheckEvent | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consent, setConsent] = useState<boolean | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [existingRegistration, setExistingRegistration] = useState<any>(null);
+  const [isCheckingRegistration, setIsCheckingRegistration] = useState(false);
+
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  const loadInitialData = async () => {
+    try {
+      const userId = await getCurrentUserId();
+      setCurrentUserId(userId);
+      
+      if (eventId) {
+        loadEventDetail();
+      }
+    } catch (error) {
+      console.error("❌ Load initial data error:", error);
+    }
+  };
 
   useEffect(() => {
     if (eventId) {
@@ -49,6 +79,8 @@ export default function HealthCheckDetailScreen() {
 
       if (response.success) {
         setEvent(response.data);
+        // Kiểm tra đăng ký hiện có
+        await checkExistingRegistration();
       } else {
         Alert.alert("Lỗi", "Không thể tải thông tin sự kiện");
       }
@@ -57,6 +89,57 @@ export default function HealthCheckDetailScreen() {
       Alert.alert("Lỗi", "Đã có lỗi xảy ra khi tải thông tin sự kiện");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const checkExistingRegistration = async () => {
+    if (!currentUserId || !eventId || !studentId) return;
+    
+    try {
+      setIsCheckingRegistration(true);
+      const response = await api.getHealthCheckRegistrations({
+        parentId: currentUserId,
+        eventId: eventId,
+        studentId: studentId
+      });
+      
+      if (response.success && response.data.length > 0) {
+        setExistingRegistration(response.data[0]);
+      }
+    } catch (error) {
+      console.error("❌ Check existing registration error:", error);
+    } finally {
+      setIsCheckingRegistration(false);
+    }
+  };
+
+  const getRegistrationStatusColor = (status: string): string => {
+    switch (status) {
+      case 'pending':
+        return '#F5A623';
+      case 'approved':
+        return '#7ED321';
+      case 'rejected':
+        return '#D0021B';
+      case 'cancelled':
+        return '#9B9B9B';
+      default:
+        return '#666';
+    }
+  };
+
+  const getRegistrationStatusText = (status: string): string => {
+    switch (status) {
+      case 'pending':
+        return 'Chờ xác nhận';
+      case 'approved':
+        return 'Đã được duyệt';
+      case 'rejected':
+        return 'Đã từ chối';
+      case 'cancelled':
+        return 'Đã hủy';
+      default:
+        return 'Không xác định';
     }
   };
 
@@ -79,8 +162,226 @@ export default function HealthCheckDetailScreen() {
   };
 
   const handleRegister = () => {
-    router.push("/(tabs)/(parent)/health/checkups/registration");
+    // Reset form states
+    setConsent(null);
+    setRejectionReason("");
+    setShowConsentModal(true);
   };
+
+  const handleSubmitRegistration = async () => {
+    if (!currentUserId || !eventId || !studentId || !event) {
+      Alert.alert("Lỗi", "Thiếu thông tin cần thiết để đăng ký");
+      return;
+    }
+
+    if (consent === null) {
+      Alert.alert("Lỗi", "Vui lòng chọn đồng ý hoặc từ chối");
+      return;
+    }
+
+    if (consent === false && !rejectionReason.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập lý do từ chối");
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+
+      const registrationData = {
+        parentId: currentUserId,
+        studentId: studentId,
+        eventId: eventId,
+        status: consent ? ("pending" as const) : ("rejected" as const),
+        schoolYear: event.schoolYear,
+        notes: consent ? "Đồng ý tham gia khám sức khỏe" : rejectionReason,
+        ...(consent ? {} : { cancellationReason: rejectionReason }),
+      };
+
+      console.log("📝 Submitting registration:", registrationData);
+
+      const response = await api.createHealthCheckRegistration(registrationData);
+
+      if (response.success) {
+        setShowConsentModal(false);
+        
+        const message = consent
+          ? "Đăng ký khám sức khỏe thành công! Chờ xác nhận từ nhà trường."
+          : "Đã ghi nhận từ chối tham gia khám sức khỏe.";
+
+        Alert.alert("Thành công", message, [
+          {
+            text: "OK",
+            onPress: () => {
+              router.back(); // Quay lại trang trước
+            },
+          },
+        ]);
+      } else {
+        Alert.alert("Lỗi", response.message || "Không thể đăng ký");
+      }
+    } catch (error: any) {
+      console.error("❌ Registration error:", error);
+      Alert.alert("Lỗi", error.message || "Đã có lỗi xảy ra khi đăng ký");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const renderConsentModal = () => (
+    <Modal
+      visible={showConsentModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowConsentModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <ScrollView
+            style={styles.modalScrollView}
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconContainer}>
+                <MaterialIcons name="health-and-safety" size={32} color="#4A90E2" />
+              </View>
+              <Text style={styles.modalTitle}>Xác nhận đăng ký</Text>
+              <Text style={styles.modalSubtitle}>Khám sức khỏe định kỳ</Text>
+            </View>
+
+            <View style={styles.modalInfoSection}>
+              <View style={styles.modalInfoRow}>
+                <MaterialIcons name="person" size={20} color="#666" />
+                <View style={styles.modalInfoContent}>
+                  <Text style={styles.modalInfoLabel}>Học sinh</Text>
+                  <Text style={styles.modalInfoValue}>{studentName}</Text>
+                </View>
+              </View>
+
+              <View style={styles.modalInfoRow}>
+                <MaterialIcons name="event" size={20} color="#666" />
+                <View style={styles.modalInfoContent}>
+                  <Text style={styles.modalInfoLabel}>Sự kiện</Text>
+                  <Text style={styles.modalInfoValue}>{event?.eventName}</Text>
+                </View>
+              </View>
+
+              <View style={styles.modalInfoRow}>
+                <MaterialIcons name="location-on" size={20} color="#666" />
+                <View style={styles.modalInfoContent}>
+                  <Text style={styles.modalInfoLabel}>Địa điểm</Text>
+                  <Text style={styles.modalInfoValue}>{event?.location}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.consentSection}>
+              <Text style={styles.consentQuestion}>
+                Bạn có đồng ý cho con tham gia khám sức khỏe không?
+              </Text>
+
+              <View style={styles.consentButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.consentButton,
+                    consent === true && styles.selectedAgreeButton,
+                  ]}
+                  onPress={() => {
+                    setConsent(true);
+                    setRejectionReason("");
+                  }}
+                >
+                  <MaterialIcons
+                    name="check-circle"
+                    size={24}
+                    color={consent === true ? "#fff" : "#4A90E2"}
+                  />
+                  <Text
+                    style={[
+                      styles.consentButtonText,
+                      consent === true && styles.selectedConsentText,
+                    ]}
+                  >
+                    Đồng ý
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.consentButton,
+                    consent === false && styles.selectedRejectButton,
+                  ]}
+                  onPress={() => setConsent(false)}
+                >
+                  <MaterialIcons
+                    name="cancel"
+                    size={24}
+                    color={consent === false ? "#fff" : "#f44336"}
+                  />
+                  <Text
+                    style={[
+                      styles.consentButtonText,
+                      consent === false && styles.selectedConsentText,
+                    ]}
+                  >
+                    Không đồng ý
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {consent === false && (
+              <View style={styles.reasonSection}>
+                <Text style={styles.reasonLabel}>Lý do từ chối *</Text>
+                <TextInput
+                  style={styles.reasonInput}
+                  placeholder="Nhập lý do từ chối tham gia khám sức khỏe..."
+                  placeholderTextColor="#999"
+                  multiline={true}
+                  numberOfLines={4}
+                  value={rejectionReason}
+                  onChangeText={setRejectionReason}
+                  maxLength={500}
+                  textAlignVertical="top"
+                />
+                <Text style={styles.characterCount}>{rejectionReason.length}/500</Text>
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={styles.modalButtons}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setShowConsentModal(false)}
+            >
+              <Text style={styles.cancelButtonText}>Hủy</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.submitButton, isProcessing && styles.disabledButton]}
+              onPress={handleSubmitRegistration}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <MaterialIcons
+                    name={consent === true ? "check" : consent === false ? "close" : "send"}
+                    size={20}
+                    color="#fff"
+                  />
+                  <Text style={styles.submitButtonText}>
+                    {consent === true ? "Đăng ký" : consent === false ? "Gửi từ chối" : "Xác nhận"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 
   const renderHeader = () => (
     <LinearGradient colors={["#4A90E2", "#357ABD"]} style={styles.header}>
@@ -91,16 +392,52 @@ export default function HealthCheckDetailScreen() {
     </LinearGradient>
   );
 
+  // Thêm hàm xác định trạng thái đăng ký
+  const getRegistrationStatus = (startDate: string, endDate: string) => {
+    const now = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (now < start) {
+      return {
+        status: 'not_started',
+        text: 'Chưa mở đăng ký',
+        color: '#9B9B9B',
+        bgColor: '#F5F5F5',
+        canRegister: false
+      };
+    } else if (now >= start && now <= end) {
+      return {
+        status: 'open',
+        text: 'Đang mở đăng ký',
+        color: '#7ED321',
+        bgColor: '#F0FDF4',
+        canRegister: true
+      };
+    } else {
+      return {
+        status: 'closed',
+        text: 'Đã hết hạn đăng ký',
+        color: '#D0021B',
+        bgColor: '#FEF2F2',
+        canRegister: false
+      };
+    }
+  };
+
+  // Cập nhật hàm renderEventInfo
   const renderEventInfo = () => {
     if (!event) return null;
 
-    const isRegistrationOpen =
-      new Date() >= new Date(event.startRegistrationDate) &&
-      new Date() <= new Date(event.endRegistrationDate);
+    const registrationStatus = getRegistrationStatus(
+      event.startRegistrationDate,
+      event.endRegistrationDate
+    );
+    
     const eventStatus =
       new Date() > new Date(event.eventDate)
         ? "completed"
-        : isRegistrationOpen
+        : registrationStatus.status === 'open'
         ? "ongoing"
         : "upcoming";
 
@@ -128,6 +465,59 @@ export default function HealthCheckDetailScreen() {
 
           <Text style={styles.eventDescription}>{event.description}</Text>
 
+          {/* Hiển thị trạng thái đăng ký */}
+          <View style={styles.registrationStatusInfo}>
+            <View style={styles.registrationStatusRow}>
+              <MaterialIcons name="schedule" size={20} color={registrationStatus.color} />
+              <Text style={styles.registrationStatusLabel}>Trạng thái đăng ký:</Text>
+              <View style={[
+                styles.registrationStatusBadge,
+                { backgroundColor: registrationStatus.bgColor }
+              ]}>
+                <Text style={[
+                  styles.registrationStatusText,
+                  { color: registrationStatus.color }
+                ]}>
+                  {registrationStatus.text}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Hiển thị trạng thái đăng ký hiện có nếu có */}
+          {existingRegistration && (
+            <View style={styles.existingRegistrationCard}>
+              <View style={styles.registrationStatusHeader}>
+                <MaterialIcons name="assignment" size={20} color={getRegistrationStatusColor(existingRegistration.status)} />
+                <Text style={styles.registrationStatusTitle}>Đăng ký của bạn</Text>
+              </View>
+              <View style={styles.registrationStatusContent}>
+                <View style={[
+                  styles.registrationStatusBadge,
+                  { backgroundColor: getRegistrationStatusColor(existingRegistration.status) + '20' }
+                ]}>
+                  <Text style={[
+                    styles.registrationStatusText,
+                    { color: getRegistrationStatusColor(existingRegistration.status) }
+                  ]}>
+                    {getRegistrationStatusText(existingRegistration.status)}
+                  </Text>
+                </View>
+                {existingRegistration.notes && (
+                  <Text style={styles.registrationNotes}>
+                    Ghi chú: {existingRegistration.notes}
+                  </Text>
+                )}
+                {existingRegistration.cancellationReason && (
+                  <Text style={styles.registrationReason}>
+                    Lý do từ chối: {existingRegistration.cancellationReason}
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* ... existing event details ... */}
           <View style={styles.eventDetails}>
             <View style={styles.eventDetail}>
               <MaterialIcons name="school" size={20} color="#4A90E2" />
@@ -167,26 +557,46 @@ export default function HealthCheckDetailScreen() {
             </View>
           </View>
 
-          {isRegistrationOpen && (
+          {/* Logic hiển thị nút đăng ký dựa trên trạng thái */}
+          {registrationStatus.canRegister && !existingRegistration && (
             <TouchableOpacity
-              style={styles.registerButton}
+              style={[styles.registerButton, (isProcessing || isCheckingRegistration) && styles.disabledButton]}
               onPress={handleRegister}
+              disabled={isProcessing || isCheckingRegistration}
             >
-              <MaterialIcons name="app-registration" size={20} color="#fff" />
-              <Text style={styles.registerButtonText}>Đăng ký tham gia</Text>
+              {(isProcessing || isCheckingRegistration) ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <MaterialIcons name="app-registration" size={20} color="#fff" />
+              )}
+              <Text style={styles.registerButtonText}>
+                {isCheckingRegistration ? "Đang kiểm tra..." : isProcessing ? "Đang đăng ký..." : "Đăng ký tham gia"}
+              </Text>
             </TouchableOpacity>
           )}
 
-          {!isRegistrationOpen &&
-            new Date() <= new Date(event.endRegistrationDate) && (
-              <View style={styles.notOpenButton}>
-                <Text style={styles.notOpenButtonText}>Chưa mở đăng ký</Text>
-              </View>
-            )}
+          {existingRegistration && (
+            <View style={styles.alreadyRegisteredButton}>
+              <MaterialIcons name="check-circle" size={20} color="#7ED321" />
+              <Text style={styles.alreadyRegisteredText}>Đã đăng ký</Text>
+            </View>
+          )}
 
-          {new Date() > new Date(event.endRegistrationDate) && (
-            <View style={styles.closedButton}>
-              <Text style={styles.closedButtonText}>Đã hết hạn đăng ký</Text>
+          {registrationStatus.status === 'not_started' && (
+            <View style={[styles.statusButton, { backgroundColor: registrationStatus.bgColor }]}>
+              <MaterialIcons name="schedule" size={20} color={registrationStatus.color} />
+              <Text style={[styles.statusButtonText, { color: registrationStatus.color }]}>
+                {registrationStatus.text}
+              </Text>
+            </View>
+          )}
+
+          {registrationStatus.status === 'closed' && (
+            <View style={[styles.statusButton, { backgroundColor: registrationStatus.bgColor }]}>
+              <MaterialIcons name="event-busy" size={20} color={registrationStatus.color} />
+              <Text style={[styles.statusButtonText, { color: registrationStatus.color }]}>
+                {registrationStatus.text}
+              </Text>
             </View>
           )}
         </View>
@@ -296,10 +706,12 @@ export default function HealthCheckDetailScreen() {
       >
         {renderEventInfo()}
       </ScrollView>
+      {renderConsentModal()}
     </SafeAreaView>
   );
 }
 
+// Thêm styles cho modal
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -494,5 +906,266 @@ const styles = StyleSheet.create({
     color: "#666",
     lineHeight: 20,
     flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "90%",
+  },
+  modalScrollView: {
+    maxHeight: 500,
+  },
+  modalScrollContent: {
+    padding: 20,
+  },
+  modalHeader: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#E3F2FD",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#666",
+  },
+  modalInfoSection: {
+    marginBottom: 20,
+  },
+  modalInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: "#f8f9fa",
+    borderRadius: 8,
+  },
+  modalInfoContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  modalInfoLabel: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 2,
+  },
+  modalInfoValue: {
+    fontSize: 14,
+    color: "#333",
+    fontWeight: "500",
+  },
+  consentSection: {
+    marginBottom: 20,
+  },
+  consentQuestion: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  consentButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  consentButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#e0e0e0",
+    backgroundColor: "#fff",
+  },
+  selectedAgreeButton: {
+    backgroundColor: "#4A90E2",
+    borderColor: "#4A90E2",
+  },
+  selectedRejectButton: {
+    backgroundColor: "#f44336",
+    borderColor: "#f44336",
+  },
+  consentButtonText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+  },
+  selectedConsentText: {
+    color: "#fff",
+  },
+  reasonSection: {
+    marginBottom: 20,
+  },
+  reasonLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+  },
+  reasonInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    color: "#333",
+    minHeight: 100,
+  },
+  characterCount: {
+    fontSize: 12,
+    color: "#999",
+    textAlign: "right",
+    marginTop: 4,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  cancelButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    color: "#666",
+    fontWeight: "600",
+  },
+  submitButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: "#4A90E2",
+  },
+  submitButtonText: {
+    fontSize: 16,
+    color: "#fff",
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  
+  // Thêm styles cho registration status info
+  registrationStatusInfo: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  registrationStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  registrationStatusLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    flex: 1,
+  },
+  registrationStatusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  registrationStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  existingRegistrationCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  registrationStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  registrationStatusTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginLeft: 8,
+  },
+  registrationStatusContent: {
+    gap: 8,
+  },
+  registrationNotes: {
+    fontSize: 14,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  registrationReason: {
+    fontSize: 14,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  statusButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  statusButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  alreadyRegisteredButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#7ED321',
+  },
+  alreadyRegisteredText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: '#7ED321',
   },
 });

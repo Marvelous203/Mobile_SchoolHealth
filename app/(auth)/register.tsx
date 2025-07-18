@@ -69,7 +69,7 @@ export default function Register() {
           [
             {
               text: "OK",
-              onPress: () => router.replace("/(tabs)/(auth)/login")
+              onPress: () => router.replace("/(auth)/login")
             }
           ]
         )

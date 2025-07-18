@@ -76,12 +76,12 @@ export default function ServiceFAB() {
   const fabItems = [
     {
       icon: <MaterialIcons name="medical-services" size={24} color="#fff" />,
-      onPress: () => router.push("/checkups/booking"),
+      onPress: () => router.push("/(tabs)/(parent)/health/checkups"),
       label: "Khám sức khỏe",
     },
     {
       icon: <FontAwesome5 name="syringe" size={24} color="#fff" />,
-      onPress: () => router.push("/vaccinations/registration"),
+      onPress: () => router.push("/(tabs)/(parent)/vaccinations"),
       label: "Tiêm chủng",
     },
     {
@@ -91,7 +91,7 @@ export default function ServiceFAB() {
     },
     {
       icon: <MaterialIcons name="medication" size={24} color="#fff" />,
-      onPress: () => router.push("/medicines/submit"),
+      onPress: () => router.push("/(tabs)/(parent)/health/medicines"),
       label: "Uống thuốc",
     },
   ];

@@ -16,7 +16,9 @@ import {
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [appointment, setAppointment] = useState<Appointment | null>(null);
+  const [schoolNurse, setSchoolNurse] = useState<any>(null); // Thêm state cho thông tin y tá
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingNurse, setIsLoadingNurse] = useState(false); // Loading riêng cho y tá
 
   const appointmentTypeIcons: { [key: string]: string } = {
     checkup: "medical",
@@ -66,6 +68,11 @@ export default function AppointmentDetailScreen() {
 
       if (response.success) {
         setAppointment(response.data);
+        
+        // Nếu có schoolNurseId, fetch thông tin y tá
+        if (response.data.schoolNurseId) {
+          await loadSchoolNurseInfo(response.data.schoolNurseId);
+        }
       } else {
         Alert.alert(
           "Lỗi",
@@ -79,6 +86,26 @@ export default function AppointmentDetailScreen() {
       router.back();
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Hàm mới để load thông tin y tá
+  const loadSchoolNurseInfo = async (nurseId: string) => {
+    try {
+      setIsLoadingNurse(true);
+      console.log("👩‍⚕️ Loading school nurse info for ID:", nurseId);
+      
+      const nurseResponse = await api.getUserById(nurseId);
+      console.log("👩‍⚕️ School nurse response:", nurseResponse);
+      
+      if (nurseResponse.data) {
+        setSchoolNurse(nurseResponse.data);
+      }
+    } catch (error) {
+      console.error("❌ Load school nurse error:", error);
+      // Không hiển thị alert cho lỗi này, chỉ log
+    } finally {
+      setIsLoadingNurse(false);
     }
   };
 
@@ -247,9 +274,6 @@ export default function AppointmentDetailScreen() {
                   Mã HS: {appointment.student.studentCode} • Giới tính:{" "}
                   {appointment.student.gender === "male" ? "Nam" : "Nữ"}
                 </Text>
-                <Text style={styles.studentSubtext}>
-                  Ngày sinh: {formatDateOnly(appointment.student.dob)}
-                </Text>
               </View>
             </View>
           </View>
@@ -311,6 +335,50 @@ export default function AppointmentDetailScreen() {
             </View>
           )}
         </View>
+                {/* School Nurse Information - Hiển thị khi có schoolNurseId */}
+        {appointment.schoolNurseId && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Y tá phụ trách</Text>
+            {isLoadingNurse ? (
+              <View style={styles.nurseLoading}>
+                <ActivityIndicator size="small" color="#4CAF50" />
+                <Text style={styles.loadingText}>Đang tải thông tin y tá...</Text>
+              </View>
+            ) : schoolNurse ? (
+              <View style={styles.nurseInfo}>
+                <Ionicons name="medical" size={20} color="#4CAF50" />
+                <View style={styles.nurseDetails}>
+                  <Text style={styles.nurseName}>
+                    {schoolNurse.fullName || 'Chưa có tên'}
+                  </Text>
+                  {schoolNurse.email && (
+                    <Text style={styles.nurseSubtext}>
+                      Email: {schoolNurse.email}
+                    </Text>
+                  )}
+                  {schoolNurse.phone && (
+                    <Text style={styles.nurseSubtext}>
+                      SĐT: {schoolNurse.phone}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.nurseInfo}>
+                <Ionicons name="medical" size={20} color="#FF9800" />
+                <View style={styles.nurseDetails}>
+                  <Text style={styles.nurseName}>Y tá đã được phân công</Text>
+                  <Text style={styles.nurseSubtext}>
+                    Mã Y tá: {appointment.schoolNurseId}
+                  </Text>
+                  <Text style={styles.nurseSubtext}>
+                    (Không thể tải thông tin chi tiết)
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
 
       {/* Action Buttons */}
@@ -323,8 +391,9 @@ export default function AppointmentDetailScreen() {
             <Ionicons name="close-circle" size={20} color="#fff" />
             <Text style={styles.cancelButtonText}>Hủy lịch hẹn</Text>
           </TouchableOpacity>
-        </View>
-      )}
+        </View>)}
+      
+
     </SafeAreaView>
   );
 }
@@ -512,4 +581,44 @@ const styles = StyleSheet.create({
     color: "#666",
     marginBottom: 2,
   },
+    nurseInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  nurseDetails: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  nurseName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+  },
+  nurseSubtext: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 2,
+  },
+  nurseLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  approvedInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F5E8",
+    padding: 16,
+    borderRadius: 8,
+  },
+  approvedText: {
+    fontSize: 16,
+    color: "#4CAF50",
+    fontWeight: "500",
+    marginLeft: 8,
+    flex: 1,
+  },
 });
+
+

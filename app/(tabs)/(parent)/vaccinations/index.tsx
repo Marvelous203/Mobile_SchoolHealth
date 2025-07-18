@@ -340,20 +340,8 @@ export default function VaccinationsScreen() {
 
   // Helper functions - Calculate status based on dates
   const getEventStatus = (event: VaccineEvent): string => {
-    const now = new Date()
-    const startReg = new Date(event.startRegistrationDate)
-    const endReg = new Date(event.endRegistrationDate)
-    const eventDate = new Date(event.eventDate)
-
-    if (now > eventDate) {
-      return "completed"
-    } else if (now >= startReg && now <= endReg) {
-      return "ongoing"
-    } else if (now < startReg) {
-      return "upcoming"
-    } else {
-      return "closed"
-    }
+    // Sử dụng status từ API
+    return event.status || "completed";
   }
 
   const getStatusConfig = (status: string) => {
@@ -379,11 +367,11 @@ export default function VaccinationsScreen() {
           text: "Đã hoàn thành",
           icon: "checkmark-done-outline",
         }
-      case "closed":
+      case "cancelled":
         return {
           color: "#ef4444",
           bgColor: "#fef2f2",
-          text: "Đã đóng đăng ký",
+          text: "Đã hủy",
           icon: "close-circle-outline",
         }
       default:
@@ -415,10 +403,19 @@ export default function VaccinationsScreen() {
   // }
 
   const handleEventPress = (eventId: string): void => {
+    if (!selectedStudent) {
+      Alert.alert("Thông báo", "Vui lòng chọn học sinh trước khi xem chi tiết sự kiện");
+      return;
+    }
+    
     router.push({
-      pathname: "/vaccinations/event-detail",
-      params: { id: eventId }
-    })
+      pathname: '/vaccinations/event-detail',
+      params: {
+        id: eventId,
+        studentId: selectedStudent._id,
+        studentName: selectedStudent.fullName
+      }
+    });
   }
 
   const renderRegistrationCard = (registration: VaccineRegistrationDetail) => {

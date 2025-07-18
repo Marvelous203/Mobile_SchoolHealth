@@ -1,10 +1,12 @@
 "use client";
 
-import { api } from "@/lib/api";
+import { api, getCurrentUserId } from "@/lib/api";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  Alert,
+  Animated,
   Dimensions,
   FlatList,
   RefreshControl,
@@ -34,10 +36,71 @@ interface HealthCheckEvent {
   __v: number;
 }
 
+// Cập nhật interface HealthCheckHistory
 interface HealthCheckHistory {
-  name: string;
-  date: string;
-  result: string;
+  _id: string;
+  parentId: string;
+  studentId: string;
+  eventId: string;
+  status: string;
+  note?: string;
+  isDeleted: boolean;
+  schoolYear: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+  student: {
+    _id: string;
+    fullName: string;
+    isDeleted: boolean;
+    gender: string;
+    dob: string;
+    classId: string;
+    avatar: string;
+    studentCode: string;
+    parents: {
+      userId: string;
+      type: string;
+    }[];
+    createdAt: string;
+    updatedAt: string;
+    __v: number;
+  };
+  event: {
+    _id: string;
+    eventName: string;
+    gradeId: string;
+    description: string;
+    location: string;
+    startRegistrationDate: string;
+    endRegistrationDate: string;
+    eventDate: string;
+    schoolYear: string;
+    createdAt: string;
+    updatedAt: string;
+    __v: number;
+  } | null;
+  parent: {
+    _id: string;
+    password: string;
+    email: string;
+    fullName: string;
+    phone: string;
+    role: string;
+    studentIds: string[];
+    isDeleted: boolean;
+    createdAt: string;
+    updatedAt: string;
+    __v: number;
+  };
+}
+
+interface Student {
+  _id: string;
+  fullName: string;
+  classInfo?: {
+    name: string;
+  };
 }
 
 type TabType = "events" | "history";
@@ -57,12 +120,56 @@ export default function HealthCheckupsScreen() {
 
   // School Year Selection
   const [selectedSchoolYear, setSelectedSchoolYear] =
-    useState<string>("2024-2025");
+    useState<string>("2025-2026");
   const [availableSchoolYears] = useState<string[]>([
+    "2025-2026",
     "2024-2025",
     "2023-2024",
-    "2025-2026",
   ]);
+
+  // Student Selection
+  const [students, setStudents] = useState<Student[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isStudentCollapsed, setIsStudentCollapsed] = useState(true);
+  const [studentAnimation] = useState(new Animated.Value(0));
+
+  // Load students function
+  const loadStudents = async () => {
+    try {
+      const userId = await getCurrentUserId();
+      if (!userId) return;
+
+      const userResponse = await api.getUserProfile(userId);
+      if (userResponse.success && userResponse.data.studentIds) {
+        const studentPromises = userResponse.data.studentIds.map((id: string) =>
+          api.getStudentProfile(id)
+        );
+
+        const studentResponses = await Promise.all(studentPromises);
+        const loadedStudents = studentResponses
+          .filter((res) => res.success)
+          .map((res) => res.data);
+
+        setStudents(loadedStudents);
+        if (loadedStudents.length === 1) {
+          setSelectedStudent(loadedStudents[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load students:", error);
+    }
+  };
+
+  // Toggle student selection
+  const toggleStudent = () => {
+    const toValue = isStudentCollapsed ? 1 : 0;
+    setIsStudentCollapsed(!isStudentCollapsed);
+    Animated.timing(studentAnimation, {
+      toValue,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  };
 
   const loadData = async (
     page: number = 1,
@@ -76,51 +183,78 @@ export default function HealthCheckupsScreen() {
       }
 
       // Load health check events from API
-      try {
-        const eventsResponse = await api.searchHealthCheckEvents({
-          pageNum: page,
-          pageSize: 10,
-          schoolYear: selectedSchoolYear,
-        });
+      if (activeTab === "events") {
+        try {
+          const params: any = {
+            pageNum: page,
+            pageSize: 10,
+            schoolYear: selectedSchoolYear,
+          };
 
-        if (refresh || page === 1) {
-          setHealthCheckEvents(eventsResponse.pageData || []);
-        } else {
-          setHealthCheckEvents((prev) => [
-            ...prev,
-            ...(eventsResponse.pageData || []),
-          ]);
+          // Add studentId if a student is selected
+          if (selectedStudent) {
+            // For health check events, we still need to use gradeId
+            // but we can filter by the selected student's grade
+            const studentResponse = await api.getStudentProfile(selectedStudent._id);
+            if (studentResponse.success && studentResponse.data.classInfo?.gradeId) {
+              params.gradeId = studentResponse.data.classInfo.gradeId;
+            }
+          }
+
+          const eventsResponse = await api.searchHealthCheckEvents(params);
+
+          if (refresh || page === 1) {
+            setHealthCheckEvents(eventsResponse.pageData || []);
+          } else {
+            setHealthCheckEvents((prev) => [
+              ...prev,
+              ...(eventsResponse.pageData || []),
+            ]);
+          }
+          setCurrentPage(eventsResponse.pageInfo?.pageNum || 1);
+          setTotalPages(eventsResponse.pageInfo?.totalPages || 1);
+        } catch (apiError) {
+          console.warn("API call failed, using fallback data:", apiError);
+          // Set empty data on API failure to prevent crash
+          if (refresh || page === 1) {
+            setHealthCheckEvents([]);
+          }
+          setCurrentPage(1);
+          setTotalPages(1);
         }
-        setCurrentPage(eventsResponse.pageInfo?.pageNum || 1);
-        setTotalPages(eventsResponse.pageInfo?.totalPages || 1);
-      } catch (apiError) {
-        console.warn("API call failed, using fallback data:", apiError);
-        // Set empty data on API failure to prevent crash
-        if (refresh || page === 1) {
-          setHealthCheckEvents([]);
-        }
-        setCurrentPage(1);
-        setTotalPages(1);
       }
 
-      // Load health check history (placeholder for now)
-      try {
-        // TODO: Implement actual API call when available
-        setHealthCheckHistory([
-          {
-            name: "Khám sức khỏe định kỳ",
-            date: "2024-06-15",
-            result: "Bình thường",
-          },
-          {
-            name: "Khám sức khỏe đầu năm",
-            date: "2024-09-01",
-            result: "Cần theo dõi",
-          },
-        ]);
-      } catch (error) {
-        console.log("No health check history available:", error);
-        setHealthCheckHistory([]);
+      // Load health check history from API
+      if (activeTab === "history") {
+        try {
+          const userId = await getCurrentUserId();
+          if (!userId || !selectedStudent) {
+            setHealthCheckHistory([]);
+            return;
+          }
+
+          const params = {
+            pageNum: 1,
+            pageSize: 10,
+            parentId: userId,
+            studentId: selectedStudent._id,
+          };
+
+          const historyResponse = await api.searchHealthCheckRegistrations(params);
+          console.log('History API Response:', historyResponse);
+          console.log('History Data:', historyResponse.pageData);
+          
+          if (historyResponse.pageData && historyResponse.pageData.length > 0) {
+            setHealthCheckHistory(historyResponse.pageData);
+            console.log('Updated healthCheckHistory:', historyResponse.pageData);
+          } else {
+            setHealthCheckHistory([]);
+            console.log('Set empty history array');
+          }
+        } catch (error) {
+          console.log("Failed to load health check history:", error);
+          setHealthCheckHistory([]);
+        }
       }
     } catch (error) {
       console.error("Failed to load health check data", error);
@@ -143,7 +277,7 @@ export default function HealthCheckupsScreen() {
     loadData(1, true);
   };
 
-  // Reset when school year changes
+  // Reset when school year or student changes
   const handleSchoolYearChange = (schoolYear: string): void => {
     setSelectedSchoolYear(schoolYear);
     setHealthCheckEvents([]);
@@ -153,9 +287,32 @@ export default function HealthCheckupsScreen() {
     loadData(1, true);
   };
 
+  // Handle student selection
+  const handleStudentSelect = (student: Student) => {
+    setSelectedStudent(student);
+    setIsStudentCollapsed(true);
+    Animated.timing(studentAnimation, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+    
+    // Reload data with selected student
+    setHealthCheckEvents([]);
+    setCurrentPage(1);
+    setTotalPages(1);
+    loadData(1, true);
+  };
+
   useEffect(() => {
-    loadData();
-  }, [selectedSchoolYear]); // Reload when school year changes
+    loadStudents();
+  }, []);
+
+  useEffect(() => {
+    if (students.length > 0) {
+      loadData();
+    }
+  }, [selectedSchoolYear, selectedStudent]); // Reload when school year or student changes
 
   // Helper functions
   const formatDate = (dateString: string): string => {
@@ -174,12 +331,29 @@ export default function HealthCheckupsScreen() {
   };
 
   const handleEventPress = (eventId: string): void => {
-    router.push(`/(tabs)/(parent)/health/checkups/detail?eventId=${eventId}`);
+    if (!selectedStudent) {
+      Alert.alert("Thông báo", "Vui lòng chọn học sinh trước khi xem chi tiết sự kiện");
+      return;
+    }
+    
+    router.push({
+      pathname: "/(tabs)/(parent)/health/checkups/detail",
+      params: {
+        eventId: eventId,
+        studentId: selectedStudent._id,
+        studentName: selectedStudent.fullName
+      }
+    });
   };
 
-  const handleRegisterPress = (): void => {
-    router.push("/(tabs)/(parent)/health/checkups/registration");
-  };
+  // const handleRegisterPress = (eventId: string): void => {
+  //   router.push({
+  //     pathname: "/(tabs)/(parent)/health/checkups/registration",
+  //     params: {
+  //       eventId: eventId
+  //     }
+  //   });
+  // }
 
   const renderSchoolYearSelector = () => (
     <View style={styles.schoolYearContainer}>
@@ -280,13 +454,13 @@ export default function HealthCheckupsScreen() {
           )}
         </View>
 
-        <View style={styles.eventActions}>
+        {/* <View style={styles.eventActions}>
           {isRegistrationOpen && (
             <TouchableOpacity
               style={styles.registerButton}
               onPress={(e) => {
                 e.stopPropagation();
-                handleRegisterPress();
+                handleRegisterPress(item._id);
               }}
             >
               <Text style={styles.registerButtonText}>Đăng ký</Text>
@@ -296,7 +470,7 @@ export default function HealthCheckupsScreen() {
             <Text style={styles.detailButtonText}>Chi tiết</Text>
             <Ionicons name="chevron-forward" size={16} color="#007AFF" />
           </TouchableOpacity>
-        </View>
+        </View> */}
       </TouchableOpacity>
     );
   };
@@ -341,29 +515,35 @@ export default function HealthCheckupsScreen() {
   };
 
   const renderTabButton = (
-    tabKey: TabType,
-    title: string,
-    icon: keyof typeof Ionicons.glyphMap
-  ) => (
-    <TouchableOpacity
-      style={[styles.tabButton, activeTab === tabKey && styles.tabButtonActive]}
-      onPress={() => setActiveTab(tabKey)}
+  tabKey: TabType,
+  title: string,
+  icon: keyof typeof Ionicons.glyphMap
+) => (
+  <TouchableOpacity
+    style={[styles.tabButton, activeTab === tabKey && styles.tabButtonActive]}
+    onPress={() => {
+      setActiveTab(tabKey);
+      // Load data ngay khi chuyển tab
+      if (students.length > 0) {
+        loadData(1, true);
+      }
+    }}
+  >
+    <Ionicons
+      name={icon}
+      size={20}
+      color={activeTab === tabKey ? "#007AFF" : "#666"}
+    />
+    <Text
+      style={[
+        styles.tabButtonText,
+        activeTab === tabKey && styles.tabButtonTextActive,
+      ]}
     >
-      <Ionicons
-        name={icon}
-        size={20}
-        color={activeTab === tabKey ? "#007AFF" : "#666"}
-      />
-      <Text
-        style={[
-          styles.tabButtonText,
-          activeTab === tabKey && styles.tabButtonTextActive,
-        ]}
-      >
-        {title}
-      </Text>
-    </TouchableOpacity>
-  );
+      {title}
+    </Text>
+  </TouchableOpacity>
+);
 
   const renderEmptyState = (
     message: string,
@@ -375,15 +555,214 @@ export default function HealthCheckupsScreen() {
     </View>
   );
 
-  const renderHistoryItem = ({ item }: { item: HealthCheckHistory }) => (
-    <View style={styles.historyCard}>
-      <View style={styles.historyHeader}>
-        <Text style={styles.historyTitle}>{item.name}</Text>
-        <Text style={styles.historyDate}>{formatDate(item.date)}</Text>
+  const renderHistoryItem = ({ item }: { item: HealthCheckHistory }) => {
+    console.log('Rendering history item:', item);
+    const getStatusText = (status: string): string => {
+      switch (status) {
+        case "pending":
+          return "Đang chờ xử lý";
+        case "approved":
+          return "Đã duyệt";
+        case "completed":
+          return "Đã hoàn thành";
+        case "cancelled":
+          return "Đã hủy";
+        default:
+          return "Không xác định";
+      }
+    };
+
+    const getStatusColor = (status: string): string => {
+      switch (status) {
+        case "pending":
+          return "#F5A623";
+        case "approved":
+          return "#7ED321";
+        case "completed":
+          return "#4A90E2";
+        case "cancelled":
+          return "#D0021B";
+        default:
+          return "#9B9B9B";
+      }
+    };
+
+    const getStatusBgColor = (status: string): string => {
+      switch (status) {
+        case "pending":
+          return "#FFFBEB";
+        case "approved":
+          return "#F0FDF4";
+        case "completed":
+          return "#E8F4FD";
+        case "cancelled":
+          return "#FEF2F2";
+        default:
+          return "#F5F5F5";
+      }
+    };
+
+    // Kiểm tra nếu event null
+    if (!item.event) {
+      return (
+        <View style={styles.historyCard}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.historyTitle}>Sự kiện không xác định</Text>
+            <View style={[
+              styles.statusBadge,
+              { backgroundColor: getStatusBgColor(item.status) }
+            ]}>
+              <Text style={[
+                styles.statusText,
+                { color: getStatusColor(item.status) }
+              ]}>
+                {getStatusText(item.status)}
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.historyDetails}>
+            <View style={styles.historyDetailRow}>
+              <Text style={styles.historyDetailText}>Ngày đăng ký: {formatDate(item.createdAt)}</Text>
+            </View>
+            <View style={styles.historyDetailRow}>
+              <Text style={styles.historyDetailText}>Học sinh: {item.student.fullName}</Text>
+            </View>
+            {item.note && (
+              <View style={styles.historyDetailRow}>
+                <Text style={styles.historyDetailText}>Ghi chú: {item.note}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.historyCard}>
+        <View style={styles.historyHeader}>
+          <Text style={styles.historyTitle}>{item.event.eventName}</Text>
+          <View style={[
+            styles.statusBadge,
+            { backgroundColor: getStatusBgColor(item.status) }
+          ]}>
+            <Text style={[
+              styles.statusText,
+              { color: getStatusColor(item.status) }
+            ]}>
+              {getStatusText(item.status)}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.historyDetails}>
+          <View style={styles.historyDetailRow}>
+            <Text style={styles.historyDetailText}>Ngày đăng ký: {formatDate(item.createdAt)}</Text>
+          </View>
+          <View style={styles.historyDetailRow}>
+            <Text style={styles.historyDetailText}>Ngày khám: {formatDate(item.event.eventDate)}</Text>
+          </View>
+          <View style={styles.historyDetailRow}>
+            <Text style={styles.historyDetailText}>Địa điểm: {item.event.location}</Text>
+          </View>
+          <View style={styles.historyDetailRow}>
+            <Text style={styles.historyDetailText}>Học sinh: {item.student.fullName}</Text>
+          </View>
+          {item.note && (
+            <View style={styles.historyDetailRow}>
+              <Text style={styles.historyDetailText}>Ghi chú: {item.note}</Text>
+            </View>
+          )}
+        </View>
+        
+        {item.status === "completed" && (
+          <TouchableOpacity style={styles.viewResultButton}>
+            <Text style={styles.viewResultButtonText}>Xem kết quả</Text>
+          </TouchableOpacity>
+        )}
       </View>
-      <Text style={styles.historyResult}>Kết quả: {item.result}</Text>
-    </View>
-  );
+    );
+  };
+
+  // Thêm hàm renderStudentSelection
+  const renderStudentSelection = () => {
+    if (students.length <= 1) return null;
+
+    return (
+      <View style={styles.studentContainer}>
+        <TouchableOpacity
+          style={styles.studentSelector}
+          onPress={toggleStudent}
+          activeOpacity={0.7}
+        >
+          <View style={styles.studentSelectorContent}>
+            <View style={styles.studentInfo}>
+              <Ionicons name="person-outline" size={20} color="#666" />
+              <Text style={styles.studentLabel}>Học sinh:</Text>
+              <Text style={styles.selectedStudentName}>
+                {selectedStudent ? selectedStudent.fullName : "Chọn học sinh"}
+              </Text>
+            </View>
+            <Ionicons
+              name={isStudentCollapsed ? "chevron-down" : "chevron-up"}
+              size={20}
+              color="#666"
+            />
+          </View>
+        </TouchableOpacity>
+
+        <Animated.View
+          style={[
+            styles.studentDropdown,
+            {
+              maxHeight: studentAnimation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 200],
+              }),
+              opacity: studentAnimation,
+            },
+          ]}
+        >
+          <ScrollView
+            style={styles.studentList}
+            showsVerticalScrollIndicator={false}
+          >
+            {students.map((student) => (
+              <TouchableOpacity
+                key={student._id}
+                style={[
+                  styles.studentItem,
+                  selectedStudent?._id === student._id &&
+                    styles.studentItemSelected,
+                ]}
+                onPress={() => handleStudentSelect(student)}
+              >
+                <View style={styles.studentItemContent}>
+                  <Text
+                    style={[
+                      styles.studentItemName,
+                      selectedStudent?._id === student._id &&
+                        styles.studentItemNameSelected,
+                    ]}
+                  >
+                    {student.fullName}
+                  </Text>
+                  {student.classInfo && (
+                    <Text style={styles.studentItemClass}>
+                      {student.classInfo.name}
+                    </Text>
+                  )}
+                </View>
+                {selectedStudent?._id === student._id && (
+                  <Ionicons name="checkmark" size={20} color="#007AFF" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Animated.View>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -396,15 +775,16 @@ export default function HealthCheckupsScreen() {
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Khám sức khỏe</Text>
-        <TouchableOpacity 
+        {/* <TouchableOpacity 
           style={styles.addButton}
-          onPress={handleRegisterPress}
+          onPress={() => handleRegisterPress("")}
         >
           <MaterialIcons name="add" size={24} color="#1890ff" />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
       
       {renderSchoolYearSelector()}
+      {renderStudentSelection()}
 
       <View style={styles.tabContainer}>
         {renderTabButton("events", "Sự kiện", "calendar")}
@@ -466,7 +846,10 @@ export default function HealthCheckupsScreen() {
   );
 }
 
-// Thêm styles cho header
+
+
+
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -586,95 +969,20 @@ const styles = StyleSheet.create({
   eventTitleContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
+    marginBottom: 8,
   },
   eventTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    flex: 1,
-    marginRight: 10,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  eventContent: {
-    marginBottom: 16,
-  },
-  eventDetail: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  eventDetailText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: "#666",
-    flex: 1,
-  },
-  eventActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  registerButton: {
-    backgroundColor: "#007AFF",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  registerButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  detailButton: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  detailButtonText: {
-    color: "#007AFF",
-    fontSize: 14,
-    fontWeight: "500",
-    marginRight: 4,
-  },
-  historyCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 8,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  historyHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  historyTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
     flex: 1,
   },
-  historyDate: {
+  eventDate: {
     fontSize: 14,
     color: "#666",
   },
-  historyResult: {
+  eventResult: {
     fontSize: 14,
     color: "#333",
   },
@@ -690,4 +998,158 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
   },
+  // Thêm styles cho student selection
+  studentContainer: {
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
+  studentSelector: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+  },
+  studentSelectorContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  studentInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  studentLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+    marginRight: 10,
+    color: "#333",
+  },
+  selectedStudentName: {
+    fontSize: 16,
+    color: "#007AFF",
+    fontWeight: "500",
+    flex: 1,
+  },
+  studentDropdown: {
+    overflow: "hidden",
+    backgroundColor: "#f8f9fa",
+  },
+  studentList: {
+    maxHeight: 200,
+  },
+  studentItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  studentItemSelected: {
+    backgroundColor: "#e8f4fd",
+  },
+  studentItemContent: {
+    flex: 1,
+  },
+  studentItemName: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#333",
+  },
+  studentItemNameSelected: {
+    color: "#007AFF",
+  },
+  studentItemClass: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 2,
+  },
+  historyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  historyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+    marginRight: 12,
+  },
+  historyDate: {
+    fontSize: 14,
+    color: "#666",
+  },
+  historyResult: {
+    fontSize: 14,
+    color: "#333",
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  historyDetails: {
+    marginBottom: 12,
+  },
+  historyDetailRow: {
+    marginBottom: 4,
+  },
+  historyDetailText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  viewResultButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  viewResultButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  eventContent: {
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  backgroundColor: '#fff',
+},
+eventDetail: {
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+  marginBottom: 8,
+  paddingVertical: 4,
+},
+eventDetailText: {
+  fontSize: 14,
+  color: '#333',
+  marginLeft: 8,
+  flex: 1,
+  lineHeight: 20,
+},
 });
+
+

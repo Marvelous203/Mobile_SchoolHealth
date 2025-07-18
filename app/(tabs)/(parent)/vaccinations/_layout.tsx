@@ -18,20 +18,13 @@ export default function VaccinationsLayout() {
           presentation: "modal",
         }}
       />
-      {/* <Stack.Screen
-        name="details"
-        options={{
-          title: "Vaccination Details",
-          headerShown: false,
-        }}
-      />
       <Stack.Screen
         name="event-detail"
         options={{
           title: "Event Detail",
           headerShown: false,
         }}
-      /> */}
+      /> 
       <Stack.Screen
         name="registration-detail"
         options={{

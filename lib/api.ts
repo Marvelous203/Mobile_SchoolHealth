@@ -193,17 +193,22 @@ export interface GetUserProfileResponse {
 
 
 export interface MedicineItem {
-    name: string
-    dosage: string
-    usageInstructions: string
-    quantity: number
-    timesPerDay: number
-    timeSlots: string[]
-    startDate: string
-    endDate: string
-    note: string
-    reason: string
-  }
+  name: string
+  dosage: string
+  usageInstructions: string
+  quantity: number
+  timesPerDay: number
+  timeSlots: string[] // Đảm bảo là array
+  note: string
+  reason: string
+  // Thêm slotStatus nếu backend yêu cầu
+  slotStatus?: {
+    time: string // ISO date string
+    status: 'pending' | 'completed' | 'missed'
+    administeredBy?: string | null
+    notes?: string
+  }[]
+}
   
   export interface CreateMedicineSubmissionRequest {
     parentId: string
@@ -1191,6 +1196,7 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
         parentId?: string;
         schoolYear?: string;
         status?: "pending" | "approved" | "rejected";
+        eventId?: string; // ✅ Thêm eventId parameter
     }) => {
         try {
             // Get current user profile to extract parentId and studentIds if not provided
@@ -1232,7 +1238,8 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
                 ...(finalParams.studentId && { studentId: finalParams.studentId }),
                 ...(finalParams.parentId && { parentId: finalParams.parentId }),
                 ...(finalParams.schoolYear && { schoolYear: finalParams.schoolYear }),
-                ...(finalParams.status && { status: finalParams.status })
+                ...(finalParams.status && { status: finalParams.status }),
+                ...(finalParams.eventId && { eventId: finalParams.eventId }) // ✅ Thêm eventId vào query
             });
             
             for (const endpoint of endpointsToTry) {
@@ -1811,6 +1818,7 @@ export interface Appointment {
     _id: string
     parentId: string
     studentId: string
+    schoolNurseId?: string  // Thêm trường này
     appointmentTime: string
     reason: string
     type: string
@@ -1819,8 +1827,12 @@ export interface Appointment {
     student: {
         _id: string
         fullName: string
+        studentCode?: string
+        gender?: string
+        dob?: string
     }
     createdAt: string
+    updatedAt?: string
 }
 
 export interface CreateAppointmentRequest {

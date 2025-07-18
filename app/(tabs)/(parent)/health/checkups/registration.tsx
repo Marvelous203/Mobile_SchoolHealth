@@ -1,7 +1,7 @@
 import { api, getCurrentUserId } from "@/lib/api";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -74,6 +74,21 @@ interface HealthCheckRegistration {
 
 export default function HealthCheckRegistrationPage() {
   const router = useRouter();
+  const { 
+    eventId, 
+    studentId, 
+    studentName, 
+    eventName, 
+    eventDate, 
+    location 
+  } = useLocalSearchParams<{ 
+    eventId?: string;
+    studentId?: string;
+    studentName?: string;
+    eventName?: string;
+    eventDate?: string;
+    location?: string;
+  }>();
 
   // States
   const [isLoading, setIsLoading] = useState(true);
@@ -96,7 +111,7 @@ export default function HealthCheckRegistrationPage() {
 
   // School year selection
   const [selectedSchoolYear, setSelectedSchoolYear] =
-    useState<string>("2024-2025");
+    useState<string>("2025-2026");
   const [availableSchoolYears] = useState<string[]>([
     "2024-2025",
     "2023-2024",
@@ -119,6 +134,48 @@ export default function HealthCheckRegistrationPage() {
       loadStudentRegistrations();
     }
   }, [selectedStudent, selectedSchoolYear]);
+
+  // Cập nhật useEffect để xử lý thông tin từ detail.tsx
+  useEffect(() => {
+    if (eventId && studentId && studentName) {
+      // Tự động chọn học sinh nếu có thông tin từ detail
+      const student: Student = {
+        _id: studentId,
+        fullName: studentName
+      };
+      setSelectedStudent(student);
+      
+      // Load chi tiết sự kiện từ API
+      loadEventDetail();
+    }
+  }, [eventId, studentId, studentName]);
+
+  // Cập nhật hàm load chi tiết sự kiện
+  const loadEventDetail = async () => {
+    if (!eventId) return;
+    
+    try {
+      const eventResponse = await api.getHealthCheckEventDetail(eventId);
+      if (eventResponse.success) {
+        setSelectedEvent(eventResponse.data);
+        
+        // Kiểm tra đăng ký hiện có
+        if (selectedStudent) {
+          await loadStudentRegistrations();
+          
+          // Tự động hiển thị modal đăng ký nếu chưa đăng ký
+          const existingReg = getRegistrationStatus(eventId);
+          if (!existingReg) {
+            setTimeout(() => {
+              setShowConsentModal(true);
+            }, 1000);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("❌ Load event detail error:", error);
+    }
+  };
 
   const loadInitialData = async () => {
     try {
@@ -757,22 +814,71 @@ export default function HealthCheckRegistrationPage() {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
-        <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        {renderHeader()}
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4A90E2" />
+          <Text style={styles.loadingText}>Đang tải...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
       {renderHeader()}
+      <ScrollView style={styles.content}>
+        {/* Chỉ hiển thị thông tin sự kiện khi có eventId từ route params */}
+        {eventId && selectedEvent ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Thông tin sự kiện</Text>
+            <View style={styles.eventCard}>
+              <View style={styles.eventHeader}>
+                <Text style={styles.eventTitle}>{selectedEvent.eventName}</Text>
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusText}>Đang đăng ký</Text>
+                </View>
+              </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {renderSchoolYearSelection()}
-        {renderStudentSelection()}
-        {renderClassInfo()}
-        {renderHealthCheckEvents()}
+              <Text style={styles.eventDescription}>{selectedEvent.description}</Text>
+
+              <View style={styles.eventDetails}>
+                <View style={styles.eventDetail}>
+                  <MaterialIcons name="person" size={16} color="#666" />
+                  <Text style={styles.eventDetailText}>Học sinh: {selectedStudent?.fullName}</Text>
+                </View>
+
+                <View style={styles.eventDetail}>
+                  <MaterialIcons name="location-on" size={16} color="#666" />
+                  <Text style={styles.eventDetailText}>{selectedEvent.location}</Text>
+                </View>
+
+                <View style={styles.eventDetail}>
+                  <MaterialIcons name="event" size={16} color="#666" />
+                  <Text style={styles.eventDetailText}>
+                    Ngày khám: {formatDateTime(selectedEvent.eventDate)}
+                  </Text>
+                </View>
+
+                <View style={styles.eventDetail}>
+                  <MaterialIcons name="schedule" size={16} color="#666" />
+                  <Text style={styles.eventDetailText}>
+                    Đăng ký: {formatDate(selectedEvent.startRegistrationDate)} -{" "}
+                    {formatDate(selectedEvent.endRegistrationDate)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        ) : (
+          // Hiển thị giao diện chọn học sinh và sự kiện khi không có eventId
+          <>
+            {renderSchoolYearSelection()}
+            {renderStudentSelection()}
+            {renderClassInfo()}
+            {renderHealthCheckEvents()}
+          </>
+        )}
       </ScrollView>
 
       {renderConsentModal()}

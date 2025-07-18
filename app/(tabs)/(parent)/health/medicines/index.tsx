@@ -1,8 +1,9 @@
-import { api, MedicineSubmission } from '@/lib/api'
-import { Ionicons, MaterialIcons } from '@expo/vector-icons'
+import { api } from '@/lib/api'
+import { MedicineSubmission } from '@/lib/types'
+import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -15,20 +16,46 @@ import {
   View,
 } from 'react-native'
 
+// Interface mở rộng để bao gồm thông tin học sinh
+interface MedicineSubmissionWithStudent extends MedicineSubmission {
+  studentInfo?: {
+    _id: string
+    fullName: string
+    studentCode: string
+    classInfo?: {
+      _id: string
+      name: string
+    }
+  }
+}
+
 export default function MedicinesScreen() {
-  const [medicineSubmissions, setMedicineSubmissions] = useState<MedicineSubmission[]>([])
+  const [medicineSubmissions, setMedicineSubmissions] = useState<MedicineSubmissionWithStudent[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [pageNum, setPageNum] = useState(1)
   const [hasMore, setHasMore] = useState(true)
+  // Cache thông tin học sinh để tránh gọi API lặp lại
+  const [studentCache, setStudentCache] = useState<Record<string, any>>({})
 
   const handleCreateMedicine = () => {
     router.push('/health/medicines/create')
   }
 
+  // Thay thế useEffect hiện tại
+  useEffect(() => {
+    loadMedicineSubmissions()
+  }, []) // Đảm bảo dependency array rỗng
+  
+  // Tối ưu hóa loadCurrentUser để tránh gọi lại không cần thiết
   const loadCurrentUser = async () => {
     try {
+      // Kiểm tra cache trước khi gọi API
+      if (currentUser && currentUser._id) {
+        return currentUser
+      }
+      
       // Xóa dữ liệu cũ trong AsyncStorage để đảm bảo lấy dữ liệu mới
       await AsyncStorage.removeItem('userData')
       
@@ -51,14 +78,53 @@ export default function MedicinesScreen() {
     return null
   }
 
-  const loadMedicineSubmissions = async (page: number = 1, isRefresh: boolean = false) => {
+  // Wrap các hàm với useCallback
+  // Hàm fetch thông tin học sinh
+  const fetchStudentInfo = async (studentId: string) => {
+    // Kiểm tra cache trước
+    if (studentCache[studentId]) {
+      return studentCache[studentId]
+    }
+
+    try {
+      console.log('📚 Fetching student info for ID:', studentId)
+      const response = await api.getStudentById(studentId)
+      
+      if (response && response.data) {
+        const studentInfo = {
+          _id: response.data._id,
+          fullName: response.data.fullName,
+          studentCode: response.data.studentCode,
+          classInfo: response.data.classInfo ? {
+            _id: response.data.classInfo._id,
+            name: response.data.classInfo.name
+          } : undefined
+        }
+        
+        // Lưu vào cache
+        setStudentCache(prev => ({
+          ...prev,
+          [studentId]: studentInfo
+        }))
+        
+        return studentInfo
+      }
+    } catch (error) {
+      console.error('❌ Error fetching student info:', error)
+    }
+    
+    return null
+  }
+
+  // Cập nhật hàm loadMedicineSubmissions
+  const loadMedicineSubmissions = useCallback(async (page: number = 1, isRefresh: boolean = false) => {
     try {
       if (isRefresh) {
         setRefreshing(true)
       } else {
         setLoading(true)
       }
-
+  
       const user = await loadCurrentUser()
       console.log('User for API call:', user)
       
@@ -66,29 +132,40 @@ export default function MedicinesScreen() {
         Alert.alert('Lỗi', 'Không thể tải thông tin người dùng')
         return
       }
-
+  
       // Kiểm tra ID có đúng định dạng MongoDB ObjectId không
       if (user._id.length !== 24) {
         console.error('Invalid user ID format:', user._id)
         Alert.alert('Lỗi', 'ID người dùng không hợp lệ')
         return
       }
-
+  
       console.log('🔍 Searching medicine submissions with parentId:', user._id)
-
+  
       const response = await api.searchMedicineSubmissions({
-        parentId: user._id, // Sử dụng _id thay vì id
+        parentId: user._id,
         pageNum: page,
         pageSize: 10
       })
-
+  
       console.log('💊 Medicine submissions response:', response)
-
+  
       if (response && response.pageData) {
+        // Fetch thông tin học sinh cho từng đơn thuốc
+        const submissionsWithStudentInfo = await Promise.all(
+          response.pageData.map(async (submission: MedicineSubmission) => {
+            const studentInfo = await fetchStudentInfo(submission.studentId)
+            return {
+              ...submission,
+              studentInfo
+            } as MedicineSubmissionWithStudent
+          })
+        )
+        
         if (isRefresh || page === 1) {
-          setMedicineSubmissions(response.pageData)
+          setMedicineSubmissions(submissionsWithStudentInfo)
         } else {
-          setMedicineSubmissions(prev => [...prev, ...response.pageData])
+          setMedicineSubmissions(prev => [...prev, ...submissionsWithStudentInfo])
         }
         
         setHasMore(page < response.pageInfo.totalPages)
@@ -100,20 +177,20 @@ export default function MedicinesScreen() {
       setLoading(false)
       setRefreshing(false)
     }
-  }
-
-  const onRefresh = () => {
+  }, [currentUser, studentCache])
+  
+  const onRefresh = useCallback(() => {
     setPageNum(1)
     loadMedicineSubmissions(1, true)
-  }
-
-  const loadMore = () => {
+  }, [loadMedicineSubmissions])
+  
+  const loadMore = useCallback(() => {
     if (hasMore && !loading) {
       const nextPage = pageNum + 1
       setPageNum(nextPage)
       loadMedicineSubmissions(nextPage)
     }
-  }
+  }, [hasMore, loading, pageNum, loadMedicineSubmissions])
 
   useEffect(() => {
     loadMedicineSubmissions()
@@ -141,7 +218,54 @@ export default function MedicinesScreen() {
     const date = new Date(dateString)
     return date.toLocaleDateString('vi-VN')
   }
- const renderMedicineItem = (item: MedicineSubmission) => (
+  const handleReuseMedicine = async (item: MedicineSubmission) => {
+    try {
+      // Lưu dữ liệu vào AsyncStorage với timeSlots đã được format
+      const reuseData = {
+        medicines: item.medicines.map(medicine => ({
+          name: medicine.name,
+          dosage: medicine.dosage,
+          usageInstructions: medicine.usageInstructions,
+          quantity: medicine.quantity,
+          timesPerDay: medicine.timesPerDay,
+          // Chuyển đổi timeSlots về format HH:MM
+          timeSlots: medicine.timeSlots.map(timeSlot => {
+            try {
+              const date = new Date(timeSlot)
+              if (isNaN(date.getTime())) {
+                return timeSlot
+              }
+              return date.toLocaleTimeString('vi-VN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+              })
+            } catch {
+              return timeSlot
+            }
+          }),
+          note: medicine.note,
+          reason: medicine.reason
+        })),
+        schoolNurseId: item.schoolNurse?._id
+      }
+      
+      // Lưu vào AsyncStorage
+      await AsyncStorage.setItem('medicineReuseData', JSON.stringify(reuseData))
+      
+      // Chuyển đến màn hình tạo với flag reuse
+      router.push({
+        pathname: '/health/medicines/create',
+        params: { reuse: 'true' }
+      })
+    } catch (error) {
+      console.error('Error preparing reuse data:', error)
+      Alert.alert('Lỗi', 'Không thể tái sử dụng đơn thuốc này')
+    }
+  }
+  
+  // Cập nhật hàm renderMedicineItem để hiển thị thông tin học sinh
+  const renderMedicineItem = (item: MedicineSubmissionWithStudent) => (
     <TouchableOpacity 
       key={item._id} 
       style={styles.medicineItem}
@@ -152,6 +276,18 @@ export default function MedicinesScreen() {
           <Text style={styles.medicineTitle}>
             {item.medicines.length} loại thuốc
           </Text>
+          {/* Hiển thị thông tin học sinh */}
+          {item.studentInfo && (
+            <View style={styles.studentInfo}>
+              <Text style={styles.studentName}>
+                 {item.studentInfo.fullName}
+              </Text>
+              <Text style={styles.studentDetails}>
+                 {item.studentInfo.studentCode}
+                {item.studentInfo.classInfo && ` •  ${item.studentInfo.classInfo.name}`}
+              </Text>
+            </View>
+          )}
           <Text style={styles.medicineDate}>
             Tạo ngày: {formatDate(item.createdAt)}
           </Text>
@@ -175,6 +311,16 @@ export default function MedicinesScreen() {
       </View>
       
       <View style={styles.medicineFooter}>
+        <TouchableOpacity 
+          style={styles.reuseButton}
+          onPress={(e) => {
+            e.stopPropagation()
+            handleReuseMedicine(item)
+          }}
+        >
+          <Ionicons name="copy" size={16} color="#4CAF50" />
+          <Text style={styles.reuseButtonText}>Tái sử dụng</Text>
+        </TouchableOpacity>
         <Ionicons name="chevron-forward" size={20} color="#999" />
       </View>
     </TouchableOpacity>
@@ -182,22 +328,7 @@ export default function MedicinesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Thêm header với button back */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => router.back()}
-        >
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Quản lý thuốc</Text>
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={handleCreateMedicine}
-        >
-          <MaterialIcons name="add" size={24} color="#1890ff" />
-        </TouchableOpacity>
-      </View>
+
       
       <ScrollView 
         style={styles.content}
@@ -271,6 +402,7 @@ export default function MedicinesScreen() {
   )
 }
 
+// Thêm styles mới cho thông tin học sinh
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -300,18 +432,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  header: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
   },
   createButton: {
     backgroundColor: '#4CAF50',
@@ -458,6 +578,38 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   medicineFooter: {
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    },
+    reuseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f8f0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+    },
+    reuseButtonText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '600',
+    marginLeft: 4,
+    },
+      studentInfo: {
+    marginVertical: 4,
   },
-})
+  studentName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2196F3',
+    marginBottom: 2,
+  },
+  studentDetails: {
+    fontSize: 12,
+    color: '#666',
+  },
+  },
+)

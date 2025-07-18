@@ -142,8 +142,15 @@ export default function AppointmentsScreen() {
     }
   }, [user?._id]);
 
-  const loadAppointments = async (page = 1, isRefresh = false) => {
-    try {
+  // Thêm ref để track request
+  // Bỏ các dòng này:
+  // const loadingRef = useRef(false);
+  // const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Và bỏ logic cancel request trong loadAppointments
+  const loadAppointments = async (page = 1, isRefresh = false, retryCount = 0) => {
+  // Cancel previous request
+  try {
       console.log("🔄 Starting loadAppointments...", { page, isRefresh });
       console.log("👤 Current parent:", user?._id);
 
@@ -178,29 +185,53 @@ export default function AppointmentsScreen() {
       );
 
       const response = await api.searchAppointments(params);
-      console.log(
-        "📥 Appointments API Response:",
-        JSON.stringify(response, null, 2)
-      );
+      console.log('📥 Appointments API Response:', JSON.stringify(response, null, 2));
+      
+      // Xử lý response dựa trên cấu trúc thực tế
+      let appointmentsData: Appointment[] = [];
+      let pageInfo = {
+        pageNum: page,
+        pageSize: pageSize,
+        totalPages: 1,
+        totalItems: 0
+      };
 
-      if (!response.pageData) {
-        console.log("⚠️ No appointments data received");
-        if (page === 1 || isRefresh) {
-          setAppointments([]);
+      // Kiểm tra các cấu trúc response có thể
+      if (Array.isArray(response)) {
+        // Response là array trực tiếp
+        appointmentsData = response;
+        pageInfo.totalItems = response.length;
+        console.log("📋 Response is direct array:", response.length);
+      } else if (response?.pageData && Array.isArray(response.pageData)) {
+        // Response có cấu trúc pageData
+        appointmentsData = response.pageData;
+        pageInfo = response.pageInfo || pageInfo;
+        console.log("📦 Response has pageData:", response.pageData.length);
+      } else if (response?.data) {
+        if (Array.isArray(response.data)) {
+          // Data là array
+          appointmentsData = response.data;
+          pageInfo.totalItems = response.data.length;
+          console.log("📦 Response.data is array:", response.data.length);
+        } else if (response.data.pageData && Array.isArray(response.data.pageData)) {
+          // Data có pageData
+          appointmentsData = response.data.pageData;
+          pageInfo = response.data.pageInfo || pageInfo;
+          console.log("📦 Response.data has pageData:", response.data.pageData.length);
         }
-        return;
       }
 
-      console.log("📥 Received appointments:", response.pageData.length);
+      console.log("📥 Final appointments data:", appointmentsData.length);
 
       if (page === 1 || isRefresh) {
-        setAppointments(response.pageData);
+        setAppointments(appointmentsData);
       } else {
-        setAppointments((prev) => [...prev, ...response.pageData]);
+        setAppointments((prev) => [...prev, ...appointmentsData]);
       }
 
-      setCurrentPage(response.pageInfo.pageNum);
-      setTotalPages(response.pageInfo.totalPages);
+      setCurrentPage(pageInfo.pageNum);
+      setTotalPages(pageInfo.totalPages);
+      
     } catch (error: any) {
       console.error("❌ Failed to load appointments", error);
 
@@ -222,6 +253,7 @@ export default function AppointmentsScreen() {
   };
 
   // Load appointments only after user is loaded
+  // Load appointments only after user is loaded
   useEffect(() => {
     console.log("🔄 Checking parent loaded state:", {
       isUserLoaded,
@@ -232,7 +264,7 @@ export default function AppointmentsScreen() {
       loadAppointments(1, false);
     }
   }, [isUserLoaded]);
-
+  
   // Handle status changes
   useEffect(() => {
     console.log("🔄 Status change effect triggered:", selectedStatus);
@@ -240,7 +272,7 @@ export default function AppointmentsScreen() {
       loadAppointments(1, true);
     }
   }, [selectedStatus]);
-
+  
   // Handle search
   useEffect(() => {
     console.log("🔍 Search effect triggered:", searchQuery);
@@ -248,7 +280,7 @@ export default function AppointmentsScreen() {
       const timeoutId = setTimeout(() => {
         loadAppointments(1, true);
       }, 500);
-
+  
       return () => clearTimeout(timeoutId);
     }
   }, [searchQuery]);

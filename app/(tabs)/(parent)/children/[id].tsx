@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { HealthRecord } from "@/lib/types";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
@@ -61,6 +62,10 @@ export default function StudentDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Health data state
+  const [healthRecord, setHealthRecord] = useState<HealthRecord | null>(null);
+  const [isLoadingHealth, setIsLoadingHealth] = useState(false);
+
   // Menu state
   const [showMenu, setShowMenu] = useState(false);
 
@@ -72,6 +77,92 @@ export default function StudentDetail() {
   const [editAvatar, setEditAvatar] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Get current school year
+  const getCurrentSchoolYear = (): string => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // getMonth() returns 0-11
+    
+    // School year starts from September
+    if (currentMonth >= 9) {
+      // Từ tháng 9 trở đi là năm học mới
+      return `${currentYear + 1}-${currentYear + 2}`;
+    } else {
+      // Từ tháng 1-8 vẫn thuộc năm học cũ
+      return `${currentYear}-${currentYear + 1}`;
+    }
+  };
+
+  // Load health data
+  const loadHealthData = async () => {
+    if (!id) return;
+    
+    try {
+      setIsLoadingHealth(true);
+      console.log("🏥 Loading health data for student:", id);
+      
+      const currentSchoolYear = getCurrentSchoolYear();
+      console.log("📅 Current school year:", currentSchoolYear);
+      
+      // List of school years to try
+      const schoolYearsToTry = [
+        currentSchoolYear,
+        "2025-2026",
+        "2024-2025",
+        "2023-2024"
+      ];
+      
+      // Remove duplicates
+      const uniqueSchoolYears = [...new Set(schoolYearsToTry)];
+      
+      let foundRecord = null;
+      
+      // Try each school year until we find data
+      for (const schoolYear of uniqueSchoolYears) {
+        console.log(`🔍 Trying school year: ${schoolYear}`);
+        
+        const params = {
+          pageNum: 1,
+          pageSize: 10,
+          studentId: id,
+          schoolYear: schoolYear
+        };
+        
+        try {
+          const response = await api.searchHealthRecords(params);
+          
+          if (response.pageData && response.pageData.length > 0) {
+            // Get the latest record for this school year
+            const latestRecord = response.pageData.sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            )[0];
+            
+            foundRecord = latestRecord;
+            console.log(`✅ Health record found for ${schoolYear}:`, latestRecord);
+            break; // Stop searching once we find data
+          } else {
+            console.log(`📭 No health records found for ${schoolYear}`);
+          }
+        } catch (yearError) {
+          console.error(`❌ Error searching ${schoolYear}:`, yearError);
+          // Continue to next year
+        }
+      }
+      
+      if (foundRecord) {
+        setHealthRecord(foundRecord);
+      } else {
+        console.log("📭 No health records found for any school year");
+        setHealthRecord(null);
+      }
+    } catch (error) {
+      console.error("❌ Failed to load health data:", error);
+      setHealthRecord(null);
+    } finally {
+      setIsLoadingHealth(false);
+    }
+  };
 
   const loadStudentData = async () => {
     try {
@@ -87,6 +178,9 @@ export default function StudentDetail() {
 
       setStudent(studentData);
       console.log("✅ Student detail loaded:", studentData);
+      
+      // Load health data after loading student info
+      await loadHealthData();
     } catch (error) {
       console.error("❌ Failed to load student detail:", error);
       Alert.alert("Lỗi", "Không thể tải thông tin học sinh");
@@ -238,43 +332,102 @@ export default function StudentDetail() {
     </View>
   );
 
-  const renderHealthOverview = () => (
-    <View style={styles.healthSection}>
-      <Text style={styles.sectionTitle}>Tình trạng sức khỏe</Text>
-      <LinearGradient colors={["#fff", "#f8f9fa"]} style={styles.healthCard}>
-        <View style={styles.healthHeader}>
-          <View style={styles.healthStatus}>
-            <View style={[styles.healthDot, { backgroundColor: "#52c41a" }]} />
-            <Text style={styles.healthStatusText}>Tình trạng tốt</Text>
-          </View>
-          <Text style={styles.lastUpdate}>Cập nhật: Hôm nay</Text>
-        </View>
+  // Get health status
+  const getHealthStatus = () => {
+    if (!healthRecord) return { status: "Chưa có dữ liệu", color: "#d9d9d9" };
+    
+    const hasIssues = 
+      healthRecord.chronicDiseases.length > 0 || 
+      healthRecord.allergies.length > 0;
+    
+    return hasIssues 
+      ? { status: "Cần theo dõi", color: "#fa8c16" }
+      : { status: "Tình trạng tốt", color: "#52c41a" };
+  };
 
-        <View style={styles.healthMetrics}>
-          <View style={styles.metricCard}>
-            <FontAwesome5 name="ruler-vertical" size={20} color="#1890ff" />
-            <Text style={styles.metricValue}>135 cm</Text>
-            <Text style={styles.metricLabel}>Chiều cao</Text>
+  const renderHealthOverview = () => {
+    const healthStatus = getHealthStatus();
+    
+    return (
+      <View style={styles.healthSection}>
+        <Text style={styles.sectionTitle}>Tình trạng sức khỏe</Text>
+        <LinearGradient colors={["#fff", "#f8f9fa"]} style={styles.healthCard}>
+          <View style={styles.healthHeader}>
+            <View style={styles.healthStatus}>
+              <View style={[styles.healthDot, { backgroundColor: healthStatus.color }]} />
+              <Text style={styles.healthStatusText}>{healthStatus.status}</Text>
+            </View>
+            <Text style={styles.lastUpdate}>
+              {healthRecord 
+                ? `Cập nhật: ${new Date(healthRecord.updatedAt).toLocaleDateString('vi-VN')}`
+                : "Chưa có dữ liệu"
+              }
+            </Text>
           </View>
-          <View style={styles.metricCard}>
-            <FontAwesome5 name="weight" size={20} color="#52c41a" />
-            <Text style={styles.metricValue}>32 kg</Text>
-            <Text style={styles.metricLabel}>Cân nặng</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <FontAwesome5 name="eye" size={20} color="#fa8c16" />
-            <Text style={styles.metricValue}>20/20</Text>
-            <Text style={styles.metricLabel}>Thị lực</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <FontAwesome5 name="heartbeat" size={20} color="#f5222d" />
-            <Text style={styles.metricValue}>Normal</Text>
-            <Text style={styles.metricLabel}>Tim mạch</Text>
-          </View>
-        </View>
-      </LinearGradient>
-    </View>
-  );
+
+          {isLoadingHealth ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#1890ff" />
+              <Text style={styles.loadingText}>Đang tải dữ liệu sức khỏe...</Text>
+            </View>
+          ) : (
+            <View style={styles.healthMetrics}>
+              {/* <View style={styles.metricCard}>
+                <FontAwesome5 name="ruler-vertical" size={20} color="#1890ff" />
+                <Text style={styles.metricValue}>
+                  {healthRecord?.height ? `${healthRecord.height} cm` : "N/A"}
+                </Text>
+                <Text style={styles.metricLabel}>Chiều cao</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <FontAwesome5 name="weight" size={20} color="#52c41a" />
+                <Text style={styles.metricValue}>
+                  {healthRecord?.weight ? `${healthRecord.weight} kg` : "N/A"}
+                </Text>
+                <Text style={styles.metricLabel}>Cân nặng</Text>
+              </View> */}
+              <View style={styles.metricCard}>
+                <FontAwesome5 name="eye" size={20} color="#fa8c16" />
+                <Text style={styles.metricValue}>
+                  {healthRecord?.vision || "N/A"}
+                </Text>
+                <Text style={styles.metricLabel}>Thị lực</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <FontAwesome5 name="heartbeat" size={20} color="#f5222d" />
+                <Text style={styles.metricValue}>
+                  {healthRecord?.hearing || "N/A"}
+                </Text>
+                <Text style={styles.metricLabel}>Thính giác</Text>
+              </View>
+            </View>
+          )}
+          
+          {/* Display chronic diseases and allergies if any */}
+          {healthRecord && (healthRecord.chronicDiseases.length > 0 || healthRecord.allergies.length > 0) && (
+            <View style={styles.healthDetails}>
+              {healthRecord.chronicDiseases.length > 0 && (
+                <View style={styles.healthDetailItem}>
+                  <Text style={styles.healthDetailLabel}>Bệnh mãn tính:</Text>
+                  <Text style={styles.healthDetailValue}>
+                    {healthRecord.chronicDiseases.join(", ")}
+                  </Text>
+                </View>
+              )}
+              {healthRecord.allergies.length > 0 && (
+                <View style={styles.healthDetailItem}>
+                  <Text style={styles.healthDetailLabel}>Dị ứng:</Text>
+                  <Text style={styles.healthDetailValue}>
+                    {healthRecord.allergies.join(", ")}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+        </LinearGradient>
+      </View>
+    );
+  };
 
   const renderRecentActivities = () => (
     <View style={styles.activitiesSection}>
@@ -678,15 +831,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#8c8c8c",
-    fontWeight: "500",
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#666',
   },
   errorContainer: {
     flex: 1,
@@ -1123,5 +1276,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
     borderRadius: 12,
     padding: 16,
+  },
+  healthDetails: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  healthDetailItem: {
+    marginBottom: 8,
+  },
+  healthDetailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 2,
+  },
+  healthDetailValue: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
   },
 });

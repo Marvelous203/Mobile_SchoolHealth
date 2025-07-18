@@ -41,71 +41,8 @@ interface Grades {
   isDeleted: boolean
 }
 
-// Đơn thuốc
-interface Medicines {
- id: string
- name: string
- description: string
- dosage: string
- sideEffects: string
- createdAt: string
- updatedAt: string
-}
-interface MedicineRequest {
-  id: string
-  studentId: string
-  medicineName: string
-  dosage: string
-  frequency: number
-  interval: number
-  method: 'oral' | 'topical' | 'eye_drops' | 'injection' | 'inhaler'
-  startDate: string
-  endDate: string
-  currentCondition: string
-  sideEffects?: string
-  notes?: string
-  status: 'pending' | 'approved' | 'active' | 'completed' | 'rejected'
-  createdAt: string
-  updatedAt: string
-}
 
-// Lịch uống thuốc
-interface MedicineSchedule {
-  id: string
-  requestId: string
-  studentId: string
-  scheduledTime: string
-  status: 'pending' | 'completed' | 'missed'
-  notes?: string
-  administeredBy?: string
-  administeredAt?: string
-}
 
-// Hồ sơ sức khỏe
-interface HealthRecords {
-  userId: string
-  studentId: string
-  // Thông tin cơ bản đã có trong Student interface
-  
-  // Tiền sử y tế
-  allergies: string[]
-  pastTreatments: string[]
-  chronicDiseases: string[]
-  vision: string
-  hearing: string
-  // Thông tin sức khỏe
-  vaccinationHistory: string[]
-
-}
-interface MedicalSupplies {
-  id: string
-  name: string
-  description: string
-  quantity: number
-  unit: string
-  createdAt: string
-  updatedAt: string
-}
 // Updated Medical Events interfaces
 export interface MedicalEventStudent {
   _id: string
@@ -368,10 +305,15 @@ export interface MedicineSubmissionDetailResponse {
       quantity: number
       timesPerDay: number
       timeSlots: string[]
-      startDate: string
-      endDate: string
       note: string
       reason: string
+      slotStatus: {
+        time: string
+        status: "taken" | "missed" | "pending"
+        _id: string
+        image?: string
+        note?: string
+      }[]
       _id: string
       createdAt: string
       updatedAt: string
@@ -412,8 +354,6 @@ export interface Medicine {
   quantity: number
   timesPerDay: number
   timeSlots: string[]
-  startDate: string
-  endDate: string
   note: string
   reason: string
   createdAt: string
@@ -618,3 +558,16 @@ export interface VaccineRegistrationDetail {
   createdAt: string
   updatedAt: string
 }
+// Thêm interface cho MedicineSubmission với thông tin học sinh
+// export interface MedicineSubmissionWithStudent extends MedicineSubmission {
+//   student?: {
+//     _id: string
+//     fullName: string
+//     studentCode: string
+//     classId?: {
+//       _id: string
+//       name: string
+//       schoolYear: string
+//     }
+//   }
+// }
