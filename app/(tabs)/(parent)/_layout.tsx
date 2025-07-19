@@ -17,6 +17,7 @@ export default function ParentLayout() {
             height: 60,
             paddingBottom: 8,
             paddingTop: 8,
+            zIndex: 10, // Đảm bảo tab bar ở trên FAB
           },
           tabBarLabelStyle: {
             fontSize: 10, // Giảm font size để vừa 5 tabs
@@ -31,6 +32,15 @@ export default function ParentLayout() {
             title: "Trang chủ",
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="home" size={size} color={color} />
+            ),
+          }}
+        />
+                <Tabs.Screen
+          name="blogs"
+          options={{
+            title: "Blog Y tế",
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="article" size={size} color={color} />
             ),
           }}
         />
@@ -56,15 +66,7 @@ export default function ParentLayout() {
             ),
           }}
         />
-        <Tabs.Screen
-          name="blogs"
-          options={{
-            title: "Blog Y tế",
-            tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="article" size={size} color={color} />
-            ),
-          }}
-        />
+
         <Tabs.Screen
           name="profile"
           options={{

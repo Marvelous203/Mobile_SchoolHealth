@@ -5,6 +5,7 @@ import {
   Animated,
   Easing,
   StyleSheet,
+  Text,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -16,9 +17,10 @@ interface FABItemProps {
   onPress: () => void;
   position: number;
   isOpen: boolean;
+  label: string;
 }
 
-const FABItem = ({ icon, onPress, position, isOpen }: FABItemProps) => {
+const FABItem = ({ icon, onPress, position, isOpen, label }: FABItemProps) => {
   const animation = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
@@ -56,12 +58,15 @@ const FABItem = ({ icon, onPress, position, isOpen }: FABItemProps) => {
         },
       ]}
     >
-      <TouchableOpacity
-        style={[styles.fabButton, { backgroundColor: "#e91e63" }]}
-        onPress={onPress}
-      >
-        {icon}
-      </TouchableOpacity>
+      <View style={styles.fabItemContainer}>
+        <Text style={styles.fabLabel}>{label}</Text>
+        <TouchableOpacity
+          style={[styles.fabButton, { backgroundColor: "#e91e63" }]}
+          onPress={onPress}
+        >
+          {icon}
+        </TouchableOpacity>
+      </View>
     </Animated.View>
   );
 };
@@ -97,7 +102,7 @@ export default function ServiceFAB() {
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { pointerEvents: 'box-none' }]}>
       {fabItems.map((item, index) => (
         <FABItem
           key={index}
@@ -108,6 +113,7 @@ export default function ServiceFAB() {
           }}
           position={index}
           isOpen={isOpen}
+          label={item.label}
         />
       ))}
       <TouchableOpacity
@@ -133,9 +139,9 @@ export default function ServiceFAB() {
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    bottom: 80,
+    bottom: 100, // Tăng từ 80 lên 100
     right: 16,
-    alignItems: "center",
+    alignItems: "flex-end",
   },
   fabButton: {
     width: BUTTON_SIZE,
@@ -158,5 +164,28 @@ const styles = StyleSheet.create({
   fabItem: {
     position: "absolute",
     right: 0,
+    alignItems: "flex-end",
+  },
+  fabItemContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  fabLabel: {
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    color: "#fff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    fontSize: 14,
+    fontWeight: "500",
+    marginRight: 12,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
   },
 });

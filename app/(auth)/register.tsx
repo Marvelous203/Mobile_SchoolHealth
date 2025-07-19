@@ -32,9 +32,9 @@ export default function Register() {
       return
     }
 
-    // Validate student code for parent registration
-    if (!studentCode) {
-      setError("Please enter student code for parent registration")
+    // Validate student code only for mother role
+    if (parentType === "mother" && !studentCode) {
+      setError("Please enter student code for mother registration")
       return
     }
 
@@ -50,10 +50,13 @@ export default function Register() {
         phone,
         role: "parent", // Fixed as parent
         isDeleted: false,
-        studentParents: [{
-          studentCode,
-          type: parentType
-        }]
+        // Only include studentParents if studentCode is provided
+        ...(studentCode && {
+          studentParents: [{
+            studentCode,
+            type: parentType
+          }]
+        })
       }
       
       // Debug: Log the data being sent
@@ -195,10 +198,13 @@ export default function Register() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Student Code</Text>
+            <Text style={styles.label}>Student Code {parentType === "mother" ? "*" : "(Optional)"}
+            </Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter student code (e.g., HS001)"
+              placeholder={parentType === "mother" 
+                ? "Enter student code (required for mother)" 
+                : "Enter student code (optional)"}
               value={studentCode}
               onChangeText={setStudentCode}
               autoCapitalize="characters"
@@ -239,7 +245,7 @@ export default function Register() {
 
           <View style={styles.loginContainer}>
             <Text style={styles.loginText}>Already have an account? </Text>
-            <Link href="/(tabs)/(auth)/login" asChild>
+            <Link href="/(auth)/login" asChild>
               <TouchableOpacity>
                 <Text style={styles.loginLink}>Login</Text>
               </TouchableOpacity>

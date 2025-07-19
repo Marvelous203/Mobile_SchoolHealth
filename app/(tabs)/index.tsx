@@ -11,12 +11,12 @@ export default function Index() {
   }
 
   if (!user) {
-    return <Redirect href="/(tabs)/(auth)/login" />;
+    return <Redirect href="/(auth)/login" />;
   }
 
   if (user.role === "parent") {
     return <Redirect href="/(tabs)/(parent)/home" />;
   }
 
-  return <Redirect href="/(tabs)/(auth)/login" />;
+  return <Redirect href="/(auth)/login" />;
 }

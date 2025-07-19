@@ -338,7 +338,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(null);
       console.log("🔄 State cleared");
 
-      router.replace("/(tabs)/(auth)/login");
+      router.replace("/(auth)/login");
       console.log("🧭 Navigated to login page");
     } catch (error) {
       console.error("❌ Logout failed", error);
