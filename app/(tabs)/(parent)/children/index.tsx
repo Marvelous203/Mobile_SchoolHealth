@@ -26,6 +26,7 @@ export default function ChildrenScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [studentCode, setStudentCode] = useState("");
+  const [relationshipType, setRelationshipType] = useState("father");
   const [isLinking, setIsLinking] = useState(false);
 
   const loadChildren = async () => {
@@ -109,7 +110,7 @@ export default function ChildrenScreen() {
       await api.linkStudents([
         {
           studentCode: studentCode.trim(),
-          type: "father",
+          type: relationshipType,
         },
       ]);
 
@@ -119,6 +120,7 @@ export default function ChildrenScreen() {
           onPress: () => {
             setShowAddModal(false);
             setStudentCode("");
+            setRelationshipType("father");
             loadChildren(); // Reload the children list
           },
         },
@@ -172,7 +174,7 @@ export default function ChildrenScreen() {
               <View style={styles.childInfo}>
                 <Text style={styles.childName}>{child.name}</Text>
                 <Text style={styles.childClass}>{child.class}</Text>
-                <Text style={styles.childCode}>Mã HS: {child.studentCode}</Text>
+                <Text style={styles.childCode}>Mã HS: {child.studentIdCode}</Text>
                 <View style={styles.healthStatus}>
                   <View style={[styles.statusIndicator, styles.statusGood]} />
                   <Text style={styles.statusText}>Tình trạng tốt</Text>
@@ -229,6 +231,58 @@ export default function ChildrenScreen() {
                 placeholder="Nhập mã học sinh (VD: HS001)"
                 autoCapitalize="characters"
               />
+
+              <Text style={styles.inputLabel}>Quan hệ với học sinh</Text>
+              <View style={styles.relationshipContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.relationshipOption,
+                    relationshipType === "father" && styles.relationshipOptionSelected,
+                  ]}
+                  onPress={() => setRelationshipType("father")}
+                >
+                  <Text
+                    style={[
+                      styles.relationshipText,
+                      relationshipType === "father" && styles.relationshipTextSelected,
+                    ]}
+                  >
+                    Bố
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.relationshipOption,
+                    relationshipType === "mother" && styles.relationshipOptionSelected,
+                  ]}
+                  onPress={() => setRelationshipType("mother")}
+                >
+                  <Text
+                    style={[
+                      styles.relationshipText,
+                      relationshipType === "mother" && styles.relationshipTextSelected,
+                    ]}
+                  >
+                    Mẹ
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.relationshipOption,
+                    relationshipType === "guardian" && styles.relationshipOptionSelected,
+                  ]}
+                  onPress={() => setRelationshipType("guardian")}
+                >
+                  <Text
+                    style={[
+                      styles.relationshipText,
+                      relationshipType === "guardian" && styles.relationshipTextSelected,
+                    ]}
+                  >
+                    Người giám hộ
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
               <View style={styles.modalActions}>
                 <TouchableOpacity
@@ -457,5 +511,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#8c8c8c",
     marginTop: 12,
+  },
+  relationshipContainer: {
+    flexDirection: "row",
+    marginBottom: 20,
+    gap: 8,
+  },
+  relationshipOption: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#d9d9d9",
+    borderRadius: 8,
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  relationshipOptionSelected: {
+    borderColor: "#1890ff",
+    backgroundColor: "#e6f7ff",
+  },
+  relationshipText: {
+    fontSize: 14,
+    color: "#8c8c8c",
+    fontWeight: "500",
+  },
+  relationshipTextSelected: {
+    color: "#1890ff",
   },
 });

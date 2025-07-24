@@ -28,8 +28,39 @@ export default function CreateAppointmentScreen() {
   const [students, setStudents] = useState<any[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
 
+  // Fixed time slots from 7:00 to 17:00
+  const timeSlots = [
+    { hour: 7, minute: 0, label: "07:00" },
+    { hour: 7, minute: 30, label: "07:30" },
+    { hour: 8, minute: 0, label: "08:00" },
+    { hour: 8, minute: 30, label: "08:30" },
+    { hour: 9, minute: 0, label: "09:00" },
+    { hour: 9, minute: 30, label: "09:30" },
+    { hour: 10, minute: 0, label: "10:00" },
+    { hour: 10, minute: 30, label: "10:30" },
+    { hour: 11, minute: 0, label: "11:00" },
+    { hour: 11, minute: 30, label: "11:30" },
+    { hour: 12, minute: 0, label: "12:00" },
+    { hour: 12, minute: 30, label: "12:30" },
+    { hour: 13, minute: 0, label: "13:00" },
+    { hour: 13, minute: 30, label: "13:30" },
+    { hour: 14, minute: 0, label: "14:00" },
+    { hour: 14, minute: 30, label: "14:30" },
+    { hour: 15, minute: 0, label: "15:00" },
+    { hour: 15, minute: 30, label: "15:30" },
+    { hour: 16, minute: 0, label: "16:00" },
+    { hour: 16, minute: 30, label: "16:30" },
+    { hour: 17, minute: 0, label: "17:00" },
+  ];
+
   // Appointment form data
-  const [appointmentTime, setAppointmentTime] = useState(new Date());
+  const [appointmentTime, setAppointmentTime] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0); // Set default time to 9:00 AM
+    return tomorrow;
+  });
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState(timeSlots[4]); // Default to 09:00
   const [reason, setReason] = useState("");
   const [type, setType] = useState("other");
   const [note, setNote] = useState("");
@@ -40,15 +71,8 @@ export default function CreateAppointmentScreen() {
 
   // Appointment types
   const appointmentTypes = [
-    { value: "checkup", label: "Khám sức khỏe", icon: "medical" },
-    { value: "vaccination", label: "Tiêm chủng", icon: "medical-outline" },
-    {
-      value: "consultation",
-      label: "Tư vấn sức khỏe",
-      icon: "chatbubble-ellipses",
-    },
-    { value: "medicine", label: "Uống thuốc", icon: "medical" },
-    { value: "injury", label: "Chấn thương", icon: "bandage" },
+    { value: "medical-check-event", label: "Khám sức khỏe", icon: "medical" },
+    { value: "vaccine-event", label: "Tiêm chủng", icon: "medical-outline" },
     { value: "other", label: "Khác", icon: "ellipsis-horizontal" },
   ];
 
@@ -61,6 +85,49 @@ export default function CreateAppointmentScreen() {
     "Theo dõi sau bệnh",
     "Khác",
   ];
+
+  // Vietnamese holidays (can be extended)
+  const vietnameseHolidays = [
+    // New Year
+    { month: 1, day: 1, name: "Tết Dương lịch" },
+    // Tet Holiday (approximate dates - should be updated yearly)
+    { month: 2, day: 10, name: "Tết Nguyên đán" },
+    { month: 2, day: 11, name: "Tết Nguyên đán" },
+    { month: 2, day: 12, name: "Tết Nguyên đán" },
+    // Hung Kings' Commemoration Day
+    { month: 4, day: 18, name: "Giỗ Tổ Hùng Vương" },
+    // Liberation Day
+    { month: 4, day: 30, name: "Ngày Giải phóng miền Nam" },
+    // International Labor Day
+    { month: 5, day: 1, name: "Ngày Quốc tế Lao động" },
+    // National Day
+    { month: 9, day: 2, name: "Ngày Quốc khánh" },
+  ];
+
+  const isWeekend = (date: Date): boolean => {
+    const day = date.getDay();
+    return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+  };
+
+  const isHoliday = (date: Date): boolean => {
+    const month = date.getMonth() + 1; // getMonth() returns 0-11
+    const day = date.getDate();
+    
+    return vietnameseHolidays.some(holiday => 
+      holiday.month === month && holiday.day === day
+    );
+  };
+
+  const getHolidayName = (date: Date): string | null => {
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    
+    const holiday = vietnameseHolidays.find(holiday => 
+      holiday.month === month && holiday.day === day
+    );
+    
+    return holiday ? holiday.name : null;
+  };
 
   useEffect(() => {
     loadUserAndStudentData();
@@ -125,18 +192,49 @@ export default function CreateAppointmentScreen() {
       return;
     }
 
-    // Check if appointment time is in the future
-    if (appointmentTime <= new Date()) {
-      Alert.alert("Lỗi", "Thời gian hẹn phải trong tương lai");
+    // Check if appointment time is at least 1 day in advance
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0); // Set to start of tomorrow
+    
+    if (appointmentTime < tomorrow) {
+      Alert.alert(
+        "Lỗi", 
+        "Lịch hẹn phải được đặt trước ít nhất 1 ngày. Vui lòng chọn ngày từ ngày mai trở đi."
+      );
       return;
     }
+
+    // Check if selected date is weekend
+    if (isWeekend(appointmentTime)) {
+      Alert.alert(
+        "Lỗi", 
+        "Không thể đặt lịch hẹn vào cuối tuần (Thứ 7 và Chủ nhật). Vui lòng chọn ngày khác."
+      );
+      return;
+    }
+
+    // Check if selected date is a holiday
+    if (isHoliday(appointmentTime)) {
+      const holidayName = getHolidayName(appointmentTime);
+      Alert.alert(
+        "Lỗi", 
+        `Không thể đặt lịch hẹn vào ngày lễ (${holidayName}). Vui lòng chọn ngày khác.`
+      );
+      return;
+    }
+
+    // Set the selected time slot to appointment time
+    const finalAppointmentTime = new Date(appointmentTime);
+    finalAppointmentTime.setHours(selectedTimeSlot.hour, selectedTimeSlot.minute, 0, 0);
 
     setLoading(true);
 
     try {
       const request: CreateAppointmentRequest = {
         studentId: selectedStudent._id,
-        appointmentTime: appointmentTime.toISOString(),
+        appointmentTime: finalAppointmentTime.toISOString(),
         reason: reason.trim(),
         type: type,
         note: note.trim(),
@@ -233,7 +331,7 @@ export default function CreateAppointmentScreen() {
                         </Text>
                         <Text style={styles.studentDetails}>
                           Lớp: {student.classInfo?.name || "N/A"} • Mã HS:{" "}
-                          {student.studentCode}
+                          {student.studentIdCode}
                         </Text>
                       </View>
                       {selectedStudent?._id === student._id && (
@@ -251,7 +349,7 @@ export default function CreateAppointmentScreen() {
                   <Text style={styles.studentName}>{students[0].fullName}</Text>
                   <Text style={styles.studentDetails}>
                     Lớp: {students[0].classInfo?.name || "N/A"} • Mã HS:{" "}
-                    {students[0].studentCode}
+                    {students[0].studentIdCode}
                   </Text>
                 </View>
               )}
@@ -294,16 +392,48 @@ export default function CreateAppointmentScreen() {
             <Text style={styles.sectionTitle}>Thời gian hẹn</Text>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Ngày và giờ *</Text>
+              <Text style={styles.label}>Ngày *</Text>
               <TouchableOpacity
                 style={styles.dateTimeInput}
                 onPress={() => setShowDatePicker(true)}
               >
                 <Text style={styles.dateTimeText}>
-                  {formatDateTime(appointmentTime)}
+                  {appointmentTime.toLocaleDateString("vi-VN")}
                 </Text>
                 <Ionicons name="calendar" size={20} color="#666" />
               </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Giờ hẹn *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.timeSlotContainer}>
+                  {timeSlots.map((slot, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.timeSlot,
+                        selectedTimeSlot.hour === slot.hour && 
+                        selectedTimeSlot.minute === slot.minute && 
+                        styles.selectedTimeSlot
+                      ]}
+                      onPress={() => setSelectedTimeSlot(slot)}
+                    >
+                      <Text style={[
+                        styles.timeSlotText,
+                        selectedTimeSlot.hour === slot.hour && 
+                        selectedTimeSlot.minute === slot.minute && 
+                        styles.selectedTimeSlotText
+                      ]}>
+                        {slot.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+              <Text style={styles.timeSlotNote}>
+                Khung giờ làm việc: 7:00 - 17:00
+              </Text>
             </View>
           </View>
 
@@ -382,7 +512,11 @@ export default function CreateAppointmentScreen() {
             value={appointmentTime}
             mode="date"
             display="default"
-            minimumDate={new Date()}
+            minimumDate={(() => {
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              return tomorrow;
+            })()}
             onChange={(event, selectedDate) => {
               setShowDatePicker(false);
               if (selectedDate) {
@@ -600,5 +734,39 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  timeSlotContainer: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 8,
+  },
+  timeSlot: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    backgroundColor: "#fff",
+    minWidth: 60,
+    alignItems: "center",
+  },
+  selectedTimeSlot: {
+    backgroundColor: "#4CAF50",
+    borderColor: "#4CAF50",
+  },
+  timeSlotText: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "500",
+  },
+  selectedTimeSlotText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  timeSlotNote: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 8,
+    fontStyle: "italic",
   },
 });

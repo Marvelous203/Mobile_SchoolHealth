@@ -22,6 +22,7 @@ interface MedicineSubmissionWithStudent extends MedicineSubmission {
     _id: string
     fullName: string
     studentCode: string
+    studentIdCode: string
     classInfo?: {
       _id: string
       name: string
@@ -283,7 +284,7 @@ export default function MedicinesScreen() {
                  {item.studentInfo.fullName}
               </Text>
               <Text style={styles.studentDetails}>
-                 {item.studentInfo.studentCode}
+                 {item.studentInfo.studentIdCode}
                 {item.studentInfo.classInfo && ` •  ${item.studentInfo.classInfo.name}`}
               </Text>
             </View>

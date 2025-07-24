@@ -1790,6 +1790,7 @@ export interface Student {
     className?: string
     avatar: string
     studentCode: string
+    studentIdCode: string
     parents: {
         userId: string
         type: 'father' | 'mother' | 'guardian'
@@ -1828,6 +1829,7 @@ export interface Appointment {
         _id: string
         fullName: string
         studentCode?: string
+        studentIdCode?: string
         gender?: string
         dob?: string
     }

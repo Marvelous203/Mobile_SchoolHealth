@@ -98,7 +98,7 @@ export default function RegistrationDetailScreen() {
             
             <View style={styles.infoRow}>
               <Text style={styles.label}>Mã học sinh:</Text>
-              <Text style={styles.value}>{registration.student?.studentCode || 'N/A'}</Text>
+              <Text style={styles.value}>{registration.student?.studentIdCode || 'N/A'}</Text>
             </View>
             
             <View style={styles.infoRow}>

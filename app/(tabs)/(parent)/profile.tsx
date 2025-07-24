@@ -26,6 +26,7 @@ interface ChildInfo {
   avatar: string;
   healthStatus: string;
   studentCode: string;
+  studentCodeId: string;
   gender: string;
   dob: string;
   classId: string;
@@ -604,7 +605,7 @@ export default function ParentProfile() {
                   <Text style={styles.childName}>{child.name}</Text>
                   <Text style={styles.childClass}>{child.class}</Text>
                   <Text style={styles.childCode}>
-                    Mã HS: {child.studentCode}
+                    Mã HS: {child.studentIdCode}
                   </Text>
                   <View style={styles.childDetails}>
                     <View style={styles.detailItem}>

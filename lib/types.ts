@@ -19,6 +19,7 @@ interface Students {
   classId: string
   avatar?: string
   studentCode: string
+  studentIdCode: string
   parentId: string
   createdAt: string
   updatedAt: string
@@ -53,6 +54,7 @@ export interface MedicalEventStudent {
   classId: string
   avatar: string
   studentCode: string
+  studentIdCode: string
   parents: {
     userId: string
     type: 'father' | 'mother'
@@ -196,6 +198,8 @@ export interface HealthRecord {
   hearing: string
   vaccinationHistory: string[]
   schoolYear: string
+  height: string
+  weight: string
   createdAt: string
   updatedAt: string
   __v: number
@@ -234,6 +238,8 @@ export interface CreateHealthRecordRequest {
     hearing: string
     vaccinationHistory: string[]
     schoolYear: string
+    height: string
+    weight: string
 }
 
 export interface CreateHealthRecordResponse {
@@ -249,6 +255,8 @@ export interface CreateHealthRecordResponse {
         hearing: string
         vaccinationHistory: string[]
         schoolYear: string
+        height: string
+        weight: string
         createdAt: string
         updatedAt: string
         __v: number

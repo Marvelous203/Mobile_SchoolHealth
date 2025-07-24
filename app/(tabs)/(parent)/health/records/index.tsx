@@ -454,7 +454,7 @@ export default function HealthRecordsScreen() {
         </Text>
         <TouchableOpacity
           style={styles.createFirstButton}
-          onPress={() => router.push("/(tabs)/(parent)/health/create-record")}
+          onPress={() => router.push("/(tabs)/(parent)/health/records/create")}
         >
           <LinearGradient
             colors={["#4facfe", "#00f2fe"]}

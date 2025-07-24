@@ -340,7 +340,7 @@ export default function MedicineSubmissionDetailScreen() {
               <View style={styles.infoRow}>
                 <Ionicons name="card" size={20} color="#666" />
                 <Text style={styles.infoLabel}>Mã học sinh:</Text>
-                <Text style={styles.infoValue}>{submission.student.studentCode}</Text>
+                <Text style={styles.infoValue}>{submission.student.studentIdCode}</Text>
               </View>
               <View style={styles.infoRow}>
                 <Ionicons name="home" size={20} color="#666" />

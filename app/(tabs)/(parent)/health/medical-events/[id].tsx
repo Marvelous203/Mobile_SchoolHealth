@@ -252,7 +252,7 @@ export default function MedicalEventDetailScreen() {
             "user-graduate",
             <>
               {renderInfoItem("Họ và tên", medicalEvent.student.fullName, true)}
-              {renderInfoItem("Mã học sinh", medicalEvent.student.studentCode)}
+              {renderInfoItem("Mã học sinh", medicalEvent.student.studentIdCode)}
               {renderInfoItem(
                 "Giới tính",
                 medicalEvent.student.gender === "male" ? "Nam" : "Nữ"

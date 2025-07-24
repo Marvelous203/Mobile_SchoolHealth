@@ -123,8 +123,8 @@ export default function HealthCheckupsScreen() {
     useState<string>("2025-2026");
   const [availableSchoolYears] = useState<string[]>([
     "2025-2026",
-    "2024-2025",
-    "2023-2024",
+    "2026-2027",
+    "2027-2028",
   ]);
 
   // Student Selection
@@ -312,7 +312,7 @@ export default function HealthCheckupsScreen() {
     if (students.length > 0) {
       loadData();
     }
-  }, [selectedSchoolYear, selectedStudent]); // Reload when school year or student changes
+  }, [selectedSchoolYear, selectedStudent, activeTab]); // Reload when school year, student, or tab changes
 
   // Helper functions
   const formatDate = (dateString: string): string => {
@@ -510,7 +510,7 @@ export default function HealthCheckupsScreen() {
       case "completed":
         return "Đã hoàn thành";
       default:
-        return "Không xác định";
+        return "Từ Chối";
     }
   };
 
@@ -568,7 +568,7 @@ export default function HealthCheckupsScreen() {
         case "cancelled":
           return "Đã hủy";
         default:
-          return "Không xác định";
+          return "Từ Chối";
       }
     };
 
@@ -583,7 +583,7 @@ export default function HealthCheckupsScreen() {
         case "cancelled":
           return "#D0021B";
         default:
-          return "#9B9B9B";
+          return "#D0021B";
       }
     };
 

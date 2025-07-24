@@ -192,8 +192,8 @@ export default function MedicalEventsScreen() {
               {item.student?.fullName || "N/A"}
             </Text>
             <Text style={styles.studentCode}>
-              ({item.student?.studentCode || "N/A"})
-            </Text>
+                  ({item.student?.studentIdCode || "N/A"})
+                </Text>
           </View>
 
           {/* Mô tả sự kiện */}

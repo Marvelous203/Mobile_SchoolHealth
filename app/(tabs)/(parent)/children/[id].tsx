@@ -28,6 +28,7 @@ interface Student {
   _id: string;
   fullName: string;
   studentCode: string;
+  studentIdCode: string;
   gender: "male" | "female";
   dob: string;
   avatar?: string;
@@ -251,7 +252,7 @@ export default function StudentDetail() {
     >
       <View style={styles.headerContent}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => router.push('/(tabs)/(parent)/children')}
           style={styles.backButton}
         >
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
@@ -289,7 +290,7 @@ export default function StudentDetail() {
           >
             {student?.classInfo?.name || "Chưa phân lớp"}
           </Text>
-          <Text style={styles.studentCode}>Mã HS: {student?.studentCode}</Text>
+          <Text style={styles.studentCode}>Mã HS: {student?.studentIdCode}</Text>
 
           <View style={styles.basicInfo}>
             <View style={styles.infoItem}>
@@ -372,20 +373,20 @@ export default function StudentDetail() {
             </View>
           ) : (
             <View style={styles.healthMetrics}>
-              {/* <View style={styles.metricCard}>
+              <View style={styles.metricCard}>
                 <FontAwesome5 name="ruler-vertical" size={20} color="#1890ff" />
                 <Text style={styles.metricValue}>
-                  {healthRecord?.height ? `${healthRecord.height} cm` : "N/A"}
+                  {healthRecord?.height || "N/A"}
                 </Text>
                 <Text style={styles.metricLabel}>Chiều cao</Text>
               </View>
               <View style={styles.metricCard}>
                 <FontAwesome5 name="weight" size={20} color="#52c41a" />
                 <Text style={styles.metricValue}>
-                  {healthRecord?.weight ? `${healthRecord.weight} kg` : "N/A"}
+                  {healthRecord?.weight || "N/A"}
                 </Text>
                 <Text style={styles.metricLabel}>Cân nặng</Text>
-              </View> */}
+              </View>
               <View style={styles.metricCard}>
                 <FontAwesome5 name="eye" size={20} color="#fa8c16" />
                 <Text style={styles.metricValue}>
@@ -701,7 +702,7 @@ export default function StudentDetail() {
 
               <View style={styles.infoContainer}>
                 <Text style={styles.infoLabel}>Mã học sinh</Text>
-                <Text style={styles.infoValue}>{student?.studentCode}</Text>
+                <Text style={styles.infoValue}>{student?.studentIdCode}</Text>
               </View>
 
               <View style={styles.infoContainer}>

@@ -4,13 +4,13 @@ import { FontAwesome5, MaterialIcons } from "@expo/vector-icons"
 import { router } from "expo-router"
 import { useEffect, useState } from "react"
 import {
-    ActivityIndicator,
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -218,7 +218,7 @@ export default function CheckupHistoryScreen() {
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => router.push('/(tabs)/(parent)/profile')}
         >
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>

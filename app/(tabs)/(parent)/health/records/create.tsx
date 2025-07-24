@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardTypeOptions,
   Modal,
   ScrollView,
   StyleSheet,
@@ -22,6 +23,7 @@ interface StudentData {
   id: string;
   name: string;
   studentCode: string;
+  studentIdCode: string;
   class: string;
   avatar: string;
 }
@@ -40,7 +42,6 @@ export default function CreateHealthRecordScreen() {
 
   // Available school years
   const schoolYears = [
-    "2024-2025",
     "2025-2026",
     "2026-2027",
     "2027-2028",
@@ -55,7 +56,9 @@ export default function CreateHealthRecordScreen() {
     vision: "",
     hearing: "",
     vaccinationHistory: [],
-    schoolYear: "2024-2025",
+    schoolYear: "2025-2026",
+    height: "",
+    weight: "",
   });
 
   // Form state for input handling
@@ -112,6 +115,7 @@ export default function CreateHealthRecordScreen() {
                   id: studentResponse.data._id,
                   name: studentResponse.data.fullName,
                   studentCode: studentResponse.data.studentCode,
+                  studentIdCode: studentResponse.data.studentIdCode,
                   class: studentResponse.data.classInfo?.name || "N/A",
                   avatar:
                     studentResponse.data.avatar ||
@@ -184,8 +188,8 @@ export default function CreateHealthRecordScreen() {
         setFormData((prev) => ({ ...prev, schoolYear: nextYear }));
       } else {
         // No existing records, use current default year
-        console.log("📅 No existing records, using default year: 2024-2025");
-        setFormData((prev) => ({ ...prev, schoolYear: "2024-2025" }));
+        console.log("📅 No existing records, using default year: 2025-2026");
+        setFormData((prev) => ({ ...prev, schoolYear: "2025-2026" }));
       }
     } catch (error) {
       console.error("❌ Error determining school year:", error);
@@ -217,6 +221,32 @@ export default function CreateHealthRecordScreen() {
     }
   };
 
+  const validateHealthData = (): string | null => {
+    // Validate height
+    if (formData.height.trim()) {
+      const height = parseFloat(formData.height);
+      if (isNaN(height) || height <= 0) {
+        return "Chiều cao phải là số dương";
+      }
+      if (height < 110 || height > 160) {
+        return "Chiều cao của học sinh phải từ 110-160cm";
+      }
+    }
+
+    // Validate weight
+    if (formData.weight.trim()) {
+      const weight = parseFloat(formData.weight);
+      if (isNaN(weight) || weight <= 0) {
+        return "Cân nặng phải là số dương";
+      }
+      if (weight < 20 || weight > 70) {
+        return "Cân nặng của học sinh phải từ 20-70kg";
+      }
+    }
+
+    return null;
+  };
+
   const handleSave = async () => {
     try {
       setLoading(true);
@@ -235,6 +265,13 @@ export default function CreateHealthRecordScreen() {
 
       if (!formData.hearing.trim()) {
         Alert.alert("Lỗi", "Vui lòng nhập thông tin thính lực");
+        return;
+      }
+
+      // Validate health data (height and weight)
+      const healthValidationError = validateHealthData();
+      if (healthValidationError) {
+        Alert.alert("Lỗi", healthValidationError);
         return;
       }
 
@@ -301,7 +338,8 @@ export default function CreateHealthRecordScreen() {
     value: string,
     onChangeText: (text: string) => void,
     placeholder: string,
-    multiline = false
+    multiline = false,
+    keyboardType: KeyboardTypeOptions = 'default'
   ) => (
     <View style={styles.inputContainer}>
       <Text style={styles.inputLabel}>{label}</Text>
@@ -313,6 +351,7 @@ export default function CreateHealthRecordScreen() {
         placeholderTextColor="#bfbfbf"
         multiline={multiline}
         numberOfLines={multiline ? 3 : 1}
+        keyboardType={keyboardType}
       />
     </View>
   );
@@ -353,8 +392,8 @@ export default function CreateHealthRecordScreen() {
     >
       <View style={styles.studentInfo}>
         <Text style={styles.studentName}>{item.name}</Text>
-        <Text style={styles.studentCode}>{item.studentCode}</Text>
-        <Text style={styles.studentClass}>{item.class}</Text>
+        <Text style={styles.studentCode}>{item.studentIdCode}</Text>
+        <Text style={styles.studentClass}>Lớp: {item.class}</Text>
       </View>
       {selectedStudent?.id === item.id && (
         <FontAwesome5 name="check-circle" size={20} color="#52c41a" />
@@ -438,10 +477,10 @@ export default function CreateHealthRecordScreen() {
                     {selectedStudent.name}
                   </Text>
                   <Text style={styles.selectedStudentCode}>
-                    {selectedStudent.studentCode}
-                  </Text>
+                  {selectedStudent.studentIdCode}
+                </Text>
                   <Text style={styles.selectedStudentClass}>
-                    {selectedStudent.class}
+                    Class: {selectedStudent.class}
                   </Text>
                 </>
               ) : (
@@ -495,6 +534,36 @@ export default function CreateHealthRecordScreen() {
                 formData.hearing,
                 (text) => setFormData({ ...formData, hearing: text }),
                 "Ví dụ: Bình thường, giảm nghe nhẹ..."
+              )}
+              {renderInput(
+                "Chiều cao (cm)",
+                formData.height,
+                (text) => {
+                  // Only allow positive numbers and decimal point
+                  const numericText = text.replace(/[^0-9.]/g, '');
+                  // Prevent multiple decimal points
+                  const parts = numericText.split('.');
+                  const validText = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : numericText;
+                  setFormData({ ...formData, height: validText });
+                },
+                "Nhập chiều cao từ 110-160cm",
+                false,
+                "numeric"
+              )}
+              {renderInput(
+                "Cân nặng (kg)",
+                formData.weight,
+                (text) => {
+                  // Only allow positive numbers and decimal point
+                  const numericText = text.replace(/[^0-9.]/g, '');
+                  // Prevent multiple decimal points
+                  const parts = numericText.split('.');
+                  const validText = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : numericText;
+                  setFormData({ ...formData, weight: validText });
+                },
+                "Nhập cân nặng từ 20-70kg",
+                false,
+                "numeric"
               )}
             </>
           )}

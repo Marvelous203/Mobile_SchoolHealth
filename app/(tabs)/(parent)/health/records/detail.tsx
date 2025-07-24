@@ -156,7 +156,7 @@ export default function HealthRecordDetailScreen() {
     isImportant = false
   ) => (
     <View style={styles.infoItem}>
-      <Text style={styles.infoLabel}>{label}:</Text>
+      <Text style={styles.infoLabel}>{label}: </Text>
       <Text
         style={[
           styles.infoValue,
@@ -348,7 +348,7 @@ export default function HealthRecordDetailScreen() {
               studentInfo?.fullName || studentName || null,
               true
             )}
-            {renderInfoItem("Mã học sinh", studentInfo?.studentCode || null)}
+            {renderInfoItem("Mã học sinh", studentInfo?.studentIdCode || null)}
             {renderInfoItem("Năm học", healthRecord.schoolYear, true)}
             {renderInfoItem(
               "Ngày tạo hồ sơ",
@@ -373,7 +373,7 @@ export default function HealthRecordDetailScreen() {
               true
             )}
             {studentInfo &&
-              renderInfoItem("Mã học sinh", studentInfo.studentCode, true)}
+              renderInfoItem("Mã học sinh", studentInfo.studentIdCode, true)}
             {renderInfoItem("Năm học", healthRecord.schoolYear)}
             {renderInfoItem(
               "Trạng thái sức khỏe",
@@ -394,6 +394,8 @@ export default function HealthRecordDetailScreen() {
           <>
             {renderInfoItem("Thị lực", healthRecord.vision)}
             {renderInfoItem("Thính lực", healthRecord.hearing)}
+            {renderInfoItem("Chiều cao(cm)", healthRecord.height)}
+            {renderInfoItem("Cân nặng(kg)", healthRecord.weight)}
           </>,
           "#52c41a"
         )}

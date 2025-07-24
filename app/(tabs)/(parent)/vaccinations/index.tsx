@@ -209,6 +209,7 @@ export default function VaccinationsScreen() {
       }
 
       const params: any = {
+        parentId: await getCurrentUserId(),
         pageNum: page,
         pageSize: 10,
         schoolYear: selectedSchoolYear,
@@ -238,26 +239,16 @@ export default function VaccinationsScreen() {
         console.log(`Registration ${index + 1}: ID=${reg._id}, Status=${reg.status}, Expected=${selectedRegistrationStatus}`)
       })
 
-      // Validate that returned data matches the filter
-      if (selectedRegistrationStatus !== "all") {
-        const filteredData = registrationsResponse.pageData?.filter(reg => 
-          reg.status === selectedRegistrationStatus
-        ) || []
-        
-        console.log('🔍 Filtered data length:', filteredData.length)
-        console.log('🔍 Original data length:', registrationsResponse.pageData?.length || 0)
-        
-        if (refresh || page === 1) {
-          setVaccineRegistrations(filteredData)
-        } else {
-          setVaccineRegistrations(prev => [...prev, ...filteredData])
-        }
+      // Since we're sending the status filter to the API, we should trust the API response
+      // No need for client-side filtering unless there's a specific reason
+      const responseData = registrationsResponse.pageData || []
+      
+      console.log('🔍 API returned data length:', responseData.length)
+      
+      if (refresh || page === 1) {
+        setVaccineRegistrations(responseData)
       } else {
-        if (refresh || page === 1) {
-          setVaccineRegistrations(registrationsResponse.pageData || [])
-        } else {
-          setVaccineRegistrations(prev => [...prev, ...(registrationsResponse.pageData || [])])
-        }
+        setVaccineRegistrations(prev => [...prev, ...responseData])
       }
       
       setRegistrationCurrentPage(registrationsResponse.pageInfo?.pageNum || 1)
@@ -265,7 +256,7 @@ export default function VaccinationsScreen() {
 
       // Sử dụng events cache thay vì gọi API
       const eventDetailsUpdate: {[key: string]: any} = {}
-      ;(registrationsResponse.pageData || []).forEach(reg => {
+      responseData.forEach(reg => {
         if (reg.eventId && eventsCache[reg.eventId]) {
           eventDetailsUpdate[reg.eventId] = eventsCache[reg.eventId]
         }
@@ -336,7 +327,7 @@ export default function VaccinationsScreen() {
   useEffect(() => {
     loadData()
     loadVaccineRegistrations()
-  }, [selectedSchoolYear, selectedStudent])
+  }, [selectedSchoolYear, selectedStudent, selectedRegistrationStatus])
 
   // Helper functions - Calculate status based on dates
   const getEventStatus = (event: VaccineEvent): string => {
@@ -588,6 +579,7 @@ export default function VaccinationsScreen() {
         setIsRefreshing(true)
         
         const params: any = {
+          parentId: await getCurrentUserId(),
           pageNum: 1,
           pageSize: 10,
           schoolYear: selectedSchoolYear,
@@ -615,20 +607,18 @@ export default function VaccinationsScreen() {
           console.log(`Registration ${index + 1}: ID=${reg._id}, Status=${reg.status}, Expected=${newStatus}`)
         })
         
-        // Client-side filtering as backup
-        let filteredData = registrationsResponse.pageData || []
-        if (newStatus !== "all") {
-          filteredData = filteredData.filter(reg => reg.status === newStatus)
-          console.log('🔍 Client-side filtered:', filteredData.length, 'of', registrationsResponse.pageData?.length || 0)
-        }
+        // Since we're sending the status filter to the API, we should trust the API response
+        const responseData = registrationsResponse.pageData || []
         
-        setVaccineRegistrations(filteredData)
+        console.log('🔍 API returned data length:', responseData.length)
+        
+        setVaccineRegistrations(responseData)
         setRegistrationCurrentPage(registrationsResponse.pageInfo?.pageNum || 1)
         setRegistrationTotalPages(registrationsResponse.pageInfo?.totalPages || 1)
         
         // Update event details cache
         const eventDetailsUpdate: {[key: string]: any} = {}
-        filteredData.forEach(reg => {
+        responseData.forEach(reg => {
           if (reg.eventId && eventsCache[reg.eventId]) {
             eventDetailsUpdate[reg.eventId] = eventsCache[reg.eventId]
           }

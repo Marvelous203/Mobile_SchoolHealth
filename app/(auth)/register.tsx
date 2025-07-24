@@ -20,10 +20,41 @@ export default function Register() {
   const [studentCode, setStudentCode] = useState("")
   const [parentType, setParentType] = useState<"father" | "mother" | "guardian">("father")
 
+  const validatePassword = (password: string): string | null => {
+    if (password.length < 8) {
+      return "Mật khẩu phải có ít nhất 8 ký tự"
+    }
+    
+    if (!/[A-Z]/.test(password)) {
+      return "Mật khẩu phải có ít nhất 1 chữ cái viết hoa"
+    }
+    
+    if (!/[a-z]/.test(password)) {
+      return "Mật khẩu phải có ít nhất 1 chữ cái viết thường"
+    }
+    
+    if (!/[0-9]/.test(password)) {
+      return "Mật khẩu phải có ít nhất 1 số"
+    }
+    
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      return "Mật khẩu phải có ít nhất 1 ký tự đặc biệt (!@#$%^&*(),.?\":{}|<>)"
+    }
+    
+    return null
+  }
+
   const handleRegister = async () => {
     // Basic validation
     if (!name || !email || !password || !confirmPassword || !phone) {
       setError("Please fill in all fields")
+      return
+    }
+
+    // Validate password strength
+    const passwordError = validatePassword(password)
+    if (passwordError) {
+      setError(passwordError)
       return
     }
 

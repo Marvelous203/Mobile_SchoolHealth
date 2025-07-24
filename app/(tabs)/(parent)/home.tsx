@@ -220,7 +220,7 @@ export default function ParentHome() {
                 priority: "medium",
                 date: event.startRegistrationDate,
                 eventId: event._id,
-                route: "/(tabs)/(parent)/checkups"
+                route: "/(tabs)/(parent)/health/registration"
               });
             }
           }
@@ -552,9 +552,9 @@ export default function ParentHome() {
                     {child.name}
                   </Text>
                   <Text style={styles.childClass}>{child.class}</Text>
-                  {child.studentCode && (
+                  {child.studentIdCode && (
                     <Text style={styles.childCode}>
-                      Mã: {child.studentCode}
+                      Mã: {child.studentIdCode}
                     </Text>
                   )}
 
@@ -710,7 +710,7 @@ export default function ParentHome() {
         subtitle: "Gửi đơn thuốc",
         icon: "pills",
         colors: ["#f093fb", "#f5576c"],
-        route: "/(tabs)/(parent)/medicines",
+        route: "/(tabs)/(parent)/health/medicines",
         badge: pendingMedicines.length > 0 ? pendingMedicines.length : null,
       },
       {
@@ -719,7 +719,7 @@ export default function ParentHome() {
         subtitle: "Đặt lịch & Kết quả",
         icon: "stethoscope",
         colors: ["#4facfe", "#00f2fe"],
-        route: "/(tabs)/(parent)/checkups",
+        route: "/(tabs)/(parent)/health/checkups",
       },
       {
         id: "vaccinations",
@@ -728,6 +728,14 @@ export default function ParentHome() {
         icon: "syringe",
         colors: ["#43e97b", "#38f9d7"],
         route: "/(tabs)/(parent)/vaccinations",
+      },
+      {
+        id: "appointments",
+        title: "Tư vấn",
+        subtitle: "Đặt lịch tư vấn",
+        icon: "calendar-check",
+        colors: ["#ff9a9e", "#fecfef"],
+        route: "/(tabs)/(parent)/appointments",
       },
       {
         id: "blogs",

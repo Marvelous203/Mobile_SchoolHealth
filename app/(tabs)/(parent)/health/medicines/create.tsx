@@ -590,7 +590,7 @@ export default function CreateMedicineScreen() {
                         </Text>
                         <Text style={styles.studentDetails}>
                           Lớp: {student.classInfo?.name || "N/A"} • Mã HS:{" "}
-                          {student.studentCode}
+                          {student.studentIdCode}
                         </Text>
                       </View>
                       {selectedStudent?._id === student._id && (
@@ -608,7 +608,7 @@ export default function CreateMedicineScreen() {
                   <Text style={styles.studentName}>{students[0].fullName}</Text>
                   <Text style={styles.studentDetails}>
                     Lớp: {students[0].classInfo?.name || "N/A"} • Mã HS:{" "}
-                    {students[0].studentCode}
+                    {students[0].studentIdCode}
                   </Text>
                 </View>
               )}

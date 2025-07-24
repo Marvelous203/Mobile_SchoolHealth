@@ -21,20 +21,14 @@ export default function AppointmentDetailScreen() {
   const [isLoadingNurse, setIsLoadingNurse] = useState(false); // Loading riêng cho y tá
 
   const appointmentTypeIcons: { [key: string]: string } = {
-    checkup: "medical",
-    vaccination: "shield-checkmark",
-    consultation: "chatbubble-ellipses",
-    medicine: "medical-outline",
-    injury: "bandage",
+    "vaccine-event": "shield-checkmark",
+    "medical-check-event": "chatbubble-ellipses",
     other: "ellipsis-horizontal",
   };
 
   const appointmentTypeLabels: { [key: string]: string } = {
-    checkup: "Khám sức khỏe",
-    vaccination: "Tiêm chủng",
-    consultation: "Tư vấn sức khỏe",
-    medicine: "Uống thuốc",
-    injury: "Chấn thương",
+    "vaccine-event": "Tiêm chủng",
+    "medical-check-event": "Tư vấn sức khỏe",
     other: "Khác",
   };
 
@@ -271,7 +265,7 @@ export default function AppointmentDetailScreen() {
                   {appointment.student.fullName}
                 </Text>
                 <Text style={styles.studentSubtext}>
-                  Mã HS: {appointment.student.studentCode} • Giới tính:{" "}
+                  Mã HS: {appointment.student.studentIdCode} • Giới tính:{" "}
                   {appointment.student.gender === "male" ? "Nam" : "Nữ"}
                 </Text>
               </View>
