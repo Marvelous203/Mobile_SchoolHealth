@@ -1,7 +1,8 @@
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -22,6 +23,7 @@ import {
 
 export default function MedicalEventsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const [medicalEvents, setMedicalEvents] = useState<MedicalEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -29,60 +31,148 @@ export default function MedicalEventsScreen() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [hasMoreData, setHasMoreData] = useState(true);
-  const [filterSerious, setFilterSerious] = useState<boolean | undefined>(
-    undefined
-  );
+
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [studentCache, setStudentCache] = useState<{[key: string]: any}>({});
+  
+  // We will get studentId from current user API instead of params
+  console.log('📋 Medical Events Screen - will use studentId from current user API');
 
   useEffect(() => {
-    loadMedicalEvents();
-  }, []);
-
-  useEffect(() => {
-    if (searchQuery !== "") {
-      const delayedSearch = setTimeout(() => {
-        setCurrentPage(1);
-        loadMedicalEvents(true, searchQuery);
-      }, 500);
-      return () => clearTimeout(delayedSearch);
-    } else {
-      setCurrentPage(1);
-      loadMedicalEvents(true);
-    }
-  }, [searchQuery]);
-
-  // Separate useEffect for filter changes
-  useEffect(() => {
-    console.log("🔍 Filter changed to:", filterSerious);
-    setCurrentPage(1);
     loadMedicalEvents(true);
-  }, [filterSerious]);
+  }, [loadMedicalEvents]);
 
-  const loadMedicalEvents = async (reset = false, query?: string) => {
+  useEffect(() => {
+    const delayedSearch = setTimeout(() => {
+      setCurrentPage(1);
+      if (searchQuery.trim() !== "") {
+        loadMedicalEvents(true);
+      } else {
+        loadMedicalEvents(true);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayedSearch);
+  }, [searchQuery, loadMedicalEvents]);
+
+
+
+  // Load current user function
+  const loadCurrentUser = async () => {
+    try {
+      if (currentUser && currentUser._id) {
+        return currentUser;
+      }
+      
+      await AsyncStorage.removeItem('userData');
+      
+      console.log('Fetching current user profile from API...');
+      const response = await api.getCurrentUser();
+      
+      if (response && response.success && response.data) {
+        console.log('✅ Parent profile loaded:', response.data);
+        
+        await AsyncStorage.setItem('userData', JSON.stringify(response.data));
+        setCurrentUser(response.data);
+        return response.data;
+      }
+      
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+    return null;
+  };
+
+  // Fetch student information
+  const fetchStudentInfo = async (studentId: string) => {
+    // Kiểm tra cache trước
+    if (studentCache[studentId]) {
+      return studentCache[studentId];
+    }
+    
+    try {
+      console.log('📚 Fetching student info for ID:', studentId);
+      const response = await api.getStudentById(studentId);
+      
+      if (response && response.data) {
+        const studentInfo = {
+          _id: response.data._id,
+          fullName: response.data.fullName,
+          studentCode: response.data.studentCode,
+          classInfo: response.data.classInfo ? {
+            _id: response.data.classInfo._id,
+            name: response.data.classInfo.name
+          } : undefined
+        };
+        
+        // Lưu vào cache
+        setStudentCache(prev => ({
+          ...prev,
+          [studentId]: studentInfo
+        }));
+        
+        return studentInfo;
+      }
+    } catch (error) {
+      console.error('❌ Error fetching student info:', error);
+    }
+    
+    return null;
+  };
+
+  const loadMedicalEvents = useCallback(async (reset = false, query?: string) => {
     try {
       if (reset) {
         setLoading(true);
         setCurrentPage(1);
       }
 
+      const user = await loadCurrentUser();
+      console.log('User for API call:', user);
+      
+      if (!user || !user._id) {
+        Alert.alert('Lỗi', 'Không thể tải thông tin người dùng');
+        return;
+      }
+
+      // Use first studentId from current user's profile
+      const effectiveStudentId = user.studentIds && user.studentIds.length > 0 ? user.studentIds[0] : undefined;
+      console.log('🔍 Using studentId from current user:', effectiveStudentId, 'user studentIds:', user.studentIds);
+
       const pageToLoad = reset ? 1 : currentPage;
-      const params: MedicalEventSearchParams = {
+      const searchParams: MedicalEventSearchParams = {
         pageNum: pageToLoad,
         pageSize: 10,
         query: query || searchQuery || undefined,
-        isSerious: filterSerious,
-        // userId will be automatically added by the API from token
+        studentId: effectiveStudentId,
       };
+      
+      console.log('🔍 Medical events search params:', searchParams);
+      console.log('📋 Using studentId from current user API:', effectiveStudentId);
 
-      console.log("🔍 Medical events search params:", params);
-      const response = await api.searchMedicalEvents(params);
+      const response = await api.searchMedicalEvents(searchParams);
 
       if (response.pageData) {
+        // Fetch thông tin học sinh cho từng medical event
+        const eventsWithStudentInfo = await Promise.all(
+          response.pageData.map(async (event: MedicalEvent) => {
+            if (event.studentId) {
+              const studentInfo = await fetchStudentInfo(event.studentId);
+              return {
+                ...event,
+                studentInfo
+              };
+            }
+            return event;
+          })
+        );
+        
         if (reset) {
-          setMedicalEvents(response.pageData);
+          setMedicalEvents(eventsWithStudentInfo);
         } else {
           // Prevent duplicates by filtering out existing items
           const existingIds = new Set(medicalEvents.map((item) => item._id));
-          const newItems = response.pageData.filter(
+          const newItems = eventsWithStudentInfo.filter(
             (item) => !existingIds.has(item._id)
           );
           setMedicalEvents((prev) => [...prev, ...newItems]);
@@ -98,22 +188,22 @@ export default function MedicalEventsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [currentUser, searchQuery, studentCache]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
     setCurrentPage(1);
     loadMedicalEvents(true);
-  };
+  }, [loadMedicalEvents]);
 
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
     if (!loading && hasMoreData && currentPage < totalPages) {
       setCurrentPage((prev) => prev + 1);
       setTimeout(() => {
         loadMedicalEvents(false);
       }, 100);
     }
-  };
+  }, [loading, hasMoreData, currentPage, totalPages, loadMedicalEvents]);
 
   const handleEventPress = (event: MedicalEvent) => {
     router.push({
@@ -133,12 +223,75 @@ export default function MedicalEventsScreen() {
     });
   };
 
-  const getSeverityColor = (isSerious: boolean) => {
-    return isSerious ? "#ff4d4f" : "#52c41a";
+  const getSeverityColor = (severityLevel: string) => {
+    switch (severityLevel?.toLowerCase()) {
+      case 'critical':
+        return "#ff4d4f";
+      case 'moderate':
+        return "#fa8c16";
+      case 'mild':
+        return "#52c41a";
+      default:
+        return "#8c8c8c";
+    }
   };
 
-  const getSeverityText = (isSerious: boolean) => {
-    return isSerious ? "Nghiêm trọng" : "Nhẹ";
+  const getSeverityText = (severityLevel: string) => {
+    switch (severityLevel?.toLowerCase()) {
+      case 'critical':
+        return "Nghiêm trọng";
+      case 'moderate':
+        return "Trung bình";
+      case 'mild':
+        return "Nhẹ";
+      default:
+        return "Không xác định";
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'monitoring':
+        return "#1890ff";
+      case 'transferred':
+        return "#fa8c16";
+      case 'resolved':
+        return "#52c41a";
+      case 'pending':
+        return "#faad14";
+      default:
+        return "#8c8c8c";
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'monitoring':
+        return "Đang theo dõi";
+      case 'transferred':
+        return "Đã chuyển viện";
+      case 'resolved':
+        return "Đã giải quyết";
+      case 'pending':
+        return "Chờ xử lý";
+      default:
+        return "Không xác định";
+    }
+  };
+
+  const getLeaveMethodText = (leaveMethod: string) => {
+    switch (leaveMethod?.toLowerCase()) {
+      case 'parent_pickup':
+        return "Phụ huynh đón";
+      case 'ambulance':
+        return "Xe cứu thương";
+      case 'self_discharge':
+        return "Tự về";
+      case 'none':
+        return "Không rời khỏi trường";
+      default:
+        return "Không xác định";
+    }
   };
 
   const renderMedicalEvent = ({ item }: { item: MedicalEvent }) => {
@@ -162,38 +315,61 @@ export default function MedicalEventsScreen() {
           <View style={styles.eventHeader}>
             <View style={styles.eventInfo}>
               <FontAwesome5
-                name={item.isSerious ? "exclamation-triangle" : "info-circle"}
+                name={item.severityLevel === 'Critical' ? "exclamation-triangle" : "info-circle"}
                 size={16}
-                color={getSeverityColor(item.isSerious)}
+                color={getSeverityColor(item.severityLevel)}
               />
               <Text style={styles.eventName}>{item.eventName}</Text>
             </View>
             <View
               style={[
                 styles.severityBadge,
-                { backgroundColor: getSeverityColor(item.isSerious) + "20" },
+                { backgroundColor: getSeverityColor(item.severityLevel) + "20" },
               ]}
             >
               <Text
                 style={[
                   styles.severityText,
-                  { color: getSeverityColor(item.isSerious) },
+                  { color: getSeverityColor(item.severityLevel) },
                 ]}
               >
-                {getSeverityText(item.isSerious)}
+                {getSeverityText(item.severityLevel)}
               </Text>
             </View>
+          </View>
+
+          {/* Status và Leave Method */}
+          <View style={styles.statusContainer}>
+            <View style={styles.statusItem}>
+              <FontAwesome5 name="heartbeat" size={12} color={getStatusColor(item.status)} />
+              <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                {getStatusText(item.status)}
+              </Text>
+            </View>
+            {item.leaveMethod && item.leaveMethod !== 'none' && (
+              <View style={styles.statusItem}>
+                <FontAwesome5 name="sign-out-alt" size={12} color="#722ed1" />
+                <Text style={styles.leaveMethodText}>
+                  {getLeaveMethodText(item.leaveMethod)}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Thông tin học sinh */}
           <View style={styles.studentInfo}>
             <FontAwesome5 name="user-graduate" size={14} color="#1890ff" />
             <Text style={styles.studentName}>
-              {item.student?.fullName || "N/A"}
+              {(item as any).studentInfo?.fullName || item.student?.fullName || "N/A"}
             </Text>
             <Text style={styles.studentCode}>
-                  ({item.student?.studentIdCode || "N/A"})
-                </Text>
+              ({(item as any).studentInfo?.studentCode || item.student?.studentIdCode || "N/A"})
+            </Text>
+            {(item as any).studentInfo?.classInfo && (
+              <Text style={styles.classInfo}>
+                - {(item as any).studentInfo.classInfo.name}
+              </Text>
+            )}
           </View>
 
           {/* Mô tả sự kiện */}
@@ -229,7 +405,25 @@ export default function MedicalEventsScreen() {
                 {item.schoolNurse?.fullName || "N/A"}
               </Text>
             </View>
+            {item.images && item.images.length > 0 && (
+              <View style={styles.infoItem}>
+                <FontAwesome5 name="image" size={12} color="#52c41a" />
+                <Text style={styles.infoText}>
+                  {item.images.length} hình ảnh
+                </Text>
+              </View>
+            )}
           </View>
+
+          {/* Ghi chú */}
+          {item.notes && item.notes.trim() !== '' && (
+            <View style={styles.notesSection}>
+              <Text style={styles.notesLabel}>Ghi chú:</Text>
+              <Text style={styles.notesText} numberOfLines={2}>
+                {item.notes}
+              </Text>
+            </View>
+          )}
 
           {/* Footer với thời gian */}
           <View style={styles.eventFooter}>
@@ -248,6 +442,14 @@ export default function MedicalEventsScreen() {
         style={styles.headerGradient}
       >
         <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.push("/(tabs)/(parent)/health")}
+            activeOpacity={0.7}
+          >
+            <FontAwesome5 name="arrow-left" size={20} color="#fff" />
+          </TouchableOpacity>
+          
           <View style={styles.headerTitleContainer}>
             <FontAwesome5 name="first-aid" size={24} color="#fff" />
             <View style={styles.headerText}>
@@ -257,6 +459,8 @@ export default function MedicalEventsScreen() {
               </Text>
             </View>
           </View>
+          
+          <View style={styles.headerSpacer} />
         </View>
       </LinearGradient>
 
@@ -278,59 +482,7 @@ export default function MedicalEventsScreen() {
           )}
         </View>
 
-        {/* Filter buttons */}
-        <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              filterSerious === undefined && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilterSerious(undefined)}
-          >
-            <Text
-              style={[
-                styles.filterButtonText,
-                filterSerious === undefined && styles.filterButtonTextActive,
-              ]}
-            >
-              Tất cả
-            </Text>
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              filterSerious === true && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilterSerious(true)}
-          >
-            <Text
-              style={[
-                styles.filterButtonText,
-                filterSerious === true && styles.filterButtonTextActive,
-              ]}
-            >
-              Nghiêm trọng
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              filterSerious === false && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilterSerious(false)}
-          >
-            <Text
-              style={[
-                styles.filterButtonText,
-                filterSerious === false && styles.filterButtonTextActive,
-              ]}
-            >
-              Nhẹ
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
     </View>
   );
@@ -416,9 +568,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  backButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+  },
+  headerSpacer: {
+    width: 36, // Same width as back button to center the title
+  },
   headerTitleContainer: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
   },
   headerText: {
     marginLeft: 12,
@@ -453,29 +615,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#262626",
   },
-  filterContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  filterButton: {
-    flex: 1,
-    paddingVertical: 8,
-    marginHorizontal: 4,
-    borderRadius: 8,
-    backgroundColor: "#f5f5f5",
-    alignItems: "center",
-  },
-  filterButtonActive: {
-    backgroundColor: "#ff7875",
-  },
-  filterButtonText: {
-    fontSize: 14,
-    color: "#8c8c8c",
-    fontWeight: "500",
-  },
-  filterButtonTextActive: {
-    color: "#fff",
-  },
+
   listContent: {
     padding: 16,
     paddingBottom: 32,
@@ -536,6 +676,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#8c8c8c",
     marginLeft: 4,
+  },
+  classInfo: {
+    fontSize: 12,
+    color: "#52c41a",
+    marginLeft: 4,
+    fontWeight: "500",
   },
   description: {
     fontSize: 14,
@@ -622,5 +768,46 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     color: "#8c8c8c",
+  },
+  statusContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 12,
+  },
+  statusItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 16,
+    marginBottom: 4,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "500",
+    marginLeft: 4,
+  },
+  leaveMethodText: {
+    fontSize: 12,
+    color: "#722ed1",
+    fontWeight: "500",
+    marginLeft: 4,
+  },
+  notesSection: {
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#1890ff",
+  },
+  notesLabel: {
+    fontSize: 12,
+    color: "#8c8c8c",
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  notesText: {
+    fontSize: 13,
+    color: "#262626",
+    lineHeight: 18,
   },
 });

@@ -81,6 +81,7 @@ export default function VaccineRegistrationDetailScreen() {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancellationReason, setCancellationReason] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
+
   const [scrollY] = useState(new Animated.Value(0))
 
   useEffect(() => {
@@ -109,6 +110,8 @@ export default function VaccineRegistrationDetailScreen() {
       // Get current user
       const userId = await getCurrentUserId()
       setCurrentUserId(userId)
+
+
     } catch (error) {
       console.error("Failed to load registration data", error)
       Alert.alert("Lỗi", "Không thể tải thông tin đăng ký tiêm chủng")
@@ -338,6 +341,8 @@ export default function VaccineRegistrationDetailScreen() {
     }
   }
 
+
+
   // Animated header opacity
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 100],
@@ -535,6 +540,17 @@ export default function VaccineRegistrationDetailScreen() {
                 </View>
               </View>
               <View style={styles.descriptionContainer}>
+                {(eventData as any)?.provider && (
+                  <View style={styles.providerContainer}>
+                    <View style={styles.providerIconBadge}>
+                      <Ionicons name="business" size={16} color="#6366f1" />
+                    </View>
+                    <View style={styles.providerInfo}>
+                      <Text style={styles.providerLabel}>Đơn vị tổ chức:</Text>
+                      <Text style={styles.providerText}>{(eventData as any).provider}</Text>
+                    </View>
+                  </View>
+                )}
                 <Text style={styles.modernDescription}>{eventData.description}</Text>
               </View>
             </View>
@@ -679,6 +695,8 @@ export default function VaccineRegistrationDetailScreen() {
               <Text style={styles.modernSchoolYearText}>{registrationData.schoolYear}</Text>
             </View>
           </View>
+
+
         </View>
       </ScrollView>
 
@@ -699,12 +717,12 @@ export default function VaccineRegistrationDetailScreen() {
                 {registrationData.status === "approved" ? "Đăng ký đã được phê duyệt" : "Đăng ký đã bị từ chối"}
               </Text>
             </View>
-            {registrationData.status === "approved" && (
+            {/* {registrationData.status === "approved" && (
               <TouchableOpacity style={styles.calendarButton} activeOpacity={0.7}>
                 <Ionicons name="calendar-outline" size={16} color="#6366f1" />
                 <Text style={styles.calendarButtonText}>Thêm lịch</Text>
               </TouchableOpacity>
-            )}
+            )} */}
           </View>
         )}
       </View>
@@ -1952,4 +1970,39 @@ const styles = StyleSheet.create({
   // disabledButton: {
   //   opacity: 0.6,
   // },
+  // Provider styles
+  providerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: "#6366f1",
+  },
+  providerIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#e0e7ff",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  providerInfo: {
+    flex: 1,
+  },
+  providerLabel: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  providerText: {
+    fontSize: 14,
+    color: "#1e293b",
+    fontWeight: "600",
+  },
+
 })

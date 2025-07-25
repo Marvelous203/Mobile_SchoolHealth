@@ -2,7 +2,7 @@ import { api } from '@/lib/api'
 import { MedicineSubmission } from '@/lib/types'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import React, { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
@@ -31,6 +31,7 @@ interface MedicineSubmissionWithStudent extends MedicineSubmission {
 }
 
 export default function MedicinesScreen() {
+  const params = useLocalSearchParams()
   const [medicineSubmissions, setMedicineSubmissions] = useState<MedicineSubmissionWithStudent[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -39,15 +40,44 @@ export default function MedicinesScreen() {
   const [hasMore, setHasMore] = useState(true)
   // Cache thông tin học sinh để tránh gọi API lặp lại
   const [studentCache, setStudentCache] = useState<Record<string, any>>({})
+  const [selectedStudent, setSelectedStudent] = useState<any>(null)
+  
+  // Extract student ID and parent ID from params
+  const studentId = params.studentId as string
+  const parentId = params.parentId as string
+  
+  console.log('💊 Medicines Screen params:', { studentId, parentId })
 
   const handleCreateMedicine = () => {
-    router.push('/health/medicines/create')
+    // Pass studentId and parentId to create screen if available
+    if (studentId && parentId) {
+      router.push({
+        pathname: '/health/medicines/create',
+        params: { studentId, parentId }
+      })
+    } else {
+      router.push('/health/medicines/create')
+    }
   }
 
+  // Load student info if studentId is provided
+  useEffect(() => {
+    if (studentId) {
+      loadSelectedStudentInfo()
+    }
+  }, [studentId])
+  
   // Thay thế useEffect hiện tại
   useEffect(() => {
     loadMedicineSubmissions()
   }, []) // Đảm bảo dependency array rỗng
+  
+  const loadSelectedStudentInfo = async () => {
+    if (studentId && !selectedStudent) {
+      const studentInfo = await fetchStudentInfo(studentId)
+      setSelectedStudent(studentInfo)
+    }
+  }
   
   // Tối ưu hóa loadCurrentUser để tránh gọi lại không cần thiết
   const loadCurrentUser = async () => {
@@ -141,13 +171,23 @@ export default function MedicinesScreen() {
         return
       }
   
-      console.log('🔍 Searching medicine submissions with parentId:', user._id)
+      // Use parentId from params if available, otherwise use current user's ID
+      const searchParentId = parentId || user._id
+      console.log('🔍 Searching medicine submissions with parentId:', searchParentId)
   
-      const response = await api.searchMedicineSubmissions({
-        parentId: user._id,
+      const searchParams: any = {
+        parentId: searchParentId,
         pageNum: page,
         pageSize: 10
-      })
+      }
+      
+      // If studentId is provided from params, add it to search
+      if (studentId) {
+        searchParams.studentId = studentId
+        console.log('🎯 Filtering by studentId:', studentId)
+      }
+  
+      const response = await api.searchMedicineSubmissions(searchParams)
   
       console.log('💊 Medicine submissions response:', response)
   
@@ -284,8 +324,8 @@ export default function MedicinesScreen() {
                  {item.studentInfo.fullName}
               </Text>
               <Text style={styles.studentDetails}>
-                 {item.studentInfo.studentIdCode}
-                {item.studentInfo.classInfo && ` •  ${item.studentInfo.classInfo.name}`}
+                {item.studentInfo.studentIdCode}
+                {item.studentInfo.classInfo && ` • ${item.studentInfo.classInfo.name}`}
               </Text>
             </View>
           )}
@@ -345,9 +385,22 @@ export default function MedicinesScreen() {
         }}
         scrollEventThrottle={400}
       >
-        {/* Header với nút tạo đơn thuốc */}
+        {/* Header với nút back và tạo đơn thuốc */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Quản lý thuốc</Text>
+          {/* <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.push('/(tabs)/(parent)/health')}
+          >
+            <Ionicons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity> */}
+          {/* <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Quản lý thuốc</Text>
+            {selectedStudent && (
+              <Text style={styles.headerSubtitle}>
+                {selectedStudent.fullName} ({selectedStudent.studentIdCode})
+              </Text>
+            )}
+          </View> */}
           <TouchableOpacity 
             style={styles.createButton}
             onPress={handleCreateMedicine}
@@ -373,7 +426,9 @@ export default function MedicinesScreen() {
 
         {/* Danh sách đơn thuốc */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Đơn thuốc gần đây</Text>
+          <Text style={styles.sectionTitle}>
+            {selectedStudent ? `Đơn thuốc của ${selectedStudent.fullName}` : 'Đơn thuốc gần đây'}
+          </Text>
           
           {loading && medicineSubmissions.length === 0 ? (
             <View style={styles.loadingContainer}>
@@ -421,12 +476,21 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 8,
   },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    flex: 1,
     textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 2,
   },
   addButton: {
     padding: 8,

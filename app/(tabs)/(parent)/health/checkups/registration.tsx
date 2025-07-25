@@ -1,4 +1,4 @@
-import { api, getCurrentUserId } from "@/lib/api";
+import { api, getCurrentUserId, getParentStudentGradeIds } from "@/lib/api";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -402,6 +402,40 @@ export default function HealthCheckRegistrationPage() {
 
     try {
       setIsProcessing(true);
+
+      // Validate gradeId - check if student's grade matches event's grade
+    try {
+      console.log("🔍 Validating gradeId for health check registration...");
+      console.log("📋 Selected event data:", JSON.stringify(selectedEvent, null, 2));
+      console.log("👤 Selected student:", JSON.stringify(selectedStudent, null, 2));
+      
+      const parentStudentGradeIds = await getParentStudentGradeIds();
+      console.log("👥 Parent's student grade IDs:", parentStudentGradeIds);
+      console.log("🎯 Event gradeId:", selectedEvent.gradeId);
+      console.log("🔍 Checking if event.gradeId (", selectedEvent.gradeId, ") is in parentStudentGradeIds:", parentStudentGradeIds);
+      console.log("✅ Includes check result:", parentStudentGradeIds.includes(selectedEvent.gradeId));
+      
+      if (!parentStudentGradeIds.includes(selectedEvent.gradeId)) {
+        console.log("❌ GradeId validation failed - student grade not matching event grade");
+        Alert.alert(
+          "Không thể đăng ký", 
+          `Sự kiện khám sức khỏe này không dành cho khối lớp của con bạn.\n\nEvent gradeId: ${selectedEvent.gradeId}\nStudent gradeIds: ${parentStudentGradeIds.join(', ')}\n\nVui lòng kiểm tra lại thông tin.`,
+          [{ text: "OK" }]
+        );
+        setIsProcessing(false);
+        return;
+      }
+      console.log("✅ GradeId validation passed");
+    } catch (error) {
+      console.error("❌ GradeId validation error:", error);
+      Alert.alert(
+        "Lỗi", 
+        "Không thể xác thực thông tin khối lớp. Vui lòng thử lại.",
+        [{ text: "OK" }]
+      );
+      setIsProcessing(false);
+      return;
+    }
 
       const registrationData = {
         parentId: currentUserId,

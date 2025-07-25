@@ -42,7 +42,7 @@ export default function MedicinesLayout() {
           },
         }} 
       />
-      <Stack.Screen 
+      {/* <Stack.Screen 
         name="history" 
         options={{ 
           title: 'Lịch sử uống thuốc',
@@ -54,7 +54,7 @@ export default function MedicinesLayout() {
             fontWeight: 'bold',
           },
         }} 
-      />
+      /> */}
     </Stack>
   )
 }

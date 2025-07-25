@@ -30,6 +30,8 @@ export default function RegistrationDetailScreen() {
     try {
       setIsLoading(true);
       const response = await api.getHealthCheckRegistrationDetail(registrationId);
+      console.log("✅ Registration detail response:", JSON.stringify(response.data, null, 2));
+      console.log("✅ Student data:", JSON.stringify(response.data.student, null, 2));
       setRegistration(response.data);
     } catch (error) {
       console.error("❌ Load registration detail error:", error);
@@ -43,6 +45,8 @@ export default function RegistrationDetailScreen() {
     switch (status) {
       case "approved": return "#52c41a";
       case "rejected": return "#ff4d4f";
+      case "pending": return "#faad14";
+      case "cancelled": return "#8c8c8c";
       default: return "#1890ff";
     }
   };
@@ -51,8 +55,39 @@ export default function RegistrationDetailScreen() {
     switch (status) {
       case "approved": return "Đã duyệt";
       case "rejected": return "Từ chối";
-      default: return "Đang chờ";
+      case "pending": return "Đang chờ xử lý";
+      case "cancelled": return "Đã hủy";
+      default: return "Không xác định";
     }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const calculateAge = (dob: string) => {
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
   };
 
   if (isLoading) {
@@ -81,74 +116,181 @@ export default function RegistrationDetailScreen() {
         <Text style={styles.headerTitle}>Chi tiết đăng ký</Text>
       </View>
       
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {registration && (
-          <View style={styles.card}>
-            <View style={styles.statusContainer}>
-              <Text style={styles.statusLabel}>Trạng thái:</Text>
-              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(registration.status) }]}>
-                <Text style={styles.statusText}>{getStatusText(registration.status)}</Text>
+          <>
+            {/* Trạng thái đăng ký */}
+            <View style={styles.card}>
+              <View style={styles.sectionHeader}>
+                <MaterialIcons name="assignment" size={20} color="#1890ff" />
+                <Text style={styles.sectionTitle}>Trạng thái đăng ký</Text>
               </View>
-            </View>
-            
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>Học sinh:</Text>
-              <Text style={styles.value}>{registration.student?.fullName || 'N/A'}</Text>
-            </View>
-            
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>Mã học sinh:</Text>
-              <Text style={styles.value}>{registration.student?.studentIdCode || 'N/A'}</Text>
-            </View>
-            
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>Phụ huynh:</Text>
-              <Text style={styles.value}>{registration.parent?.fullName || 'N/A'}</Text>
-            </View>
-            
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>Email phụ huynh:</Text>
-              <Text style={styles.value}>{registration.parent?.email || 'N/A'}</Text>
-            </View>
-            
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>Số điện thoại:</Text>
-              <Text style={styles.value}>{registration.parent?.phone || 'N/A'}</Text>
-            </View>
-            
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>Ngày đăng ký:</Text>
-              <Text style={styles.value}>{new Date(registration.createdAt).toLocaleDateString('vi-VN')}</Text>
-            </View>
-            
-            {registration.note && (
+              <View style={styles.statusContainer}>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(registration.status) }]}>
+                  <Text style={styles.statusText}>{getStatusText(registration.status)}</Text>
+                </View>
+              </View>
               <View style={styles.infoRow}>
-                <Text style={styles.label}>Ghi chú:</Text>
-                <Text style={styles.value}>{registration.note}</Text>
+                <Text style={styles.label}>Ngày đăng ký:</Text>
+                <Text style={styles.value}>{formatDateTime(registration.createdAt)}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.label}>Năm học:</Text>
+                <Text style={styles.value}>{registration.schoolYear}</Text>
+              </View>
+              {registration.updatedAt !== registration.createdAt && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Cập nhật lần cuối:</Text>
+                  <Text style={styles.value}>{formatDateTime(registration.updatedAt)}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Thông tin sự kiện */}
+            {registration.event && (
+              <View style={styles.card}>
+                <View style={styles.sectionHeader}>
+                  <MaterialIcons name="event" size={20} color="#1890ff" />
+                  <Text style={styles.sectionTitle}>Thông tin sự kiện</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Tên sự kiện:</Text>
+                  <Text style={styles.value}>{registration.event.eventName}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Mô tả:</Text>
+                  <Text style={styles.value}>{registration.event.description}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Địa điểm:</Text>
+                  <Text style={styles.value}>{registration.event.location}</Text>
+                </View>
+                {registration.event.provider && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.label}>Đơn vị thực hiện:</Text>
+                    <Text style={styles.value}>{registration.event.provider}</Text>
+                  </View>
+                )}
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Ngày khám:</Text>
+                  <Text style={styles.value}>{formatDateTime(registration.event.eventDate)}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Thời gian đăng ký:</Text>
+                  <Text style={styles.value}>
+                    {formatDate(registration.event.startRegistrationDate)} - {formatDate(registration.event.endRegistrationDate)}
+                  </Text>
+                </View>
+                {registration.event.status && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.label}>Trạng thái sự kiện:</Text>
+                    <Text style={[styles.value, { color: registration.event.status === 'completed' ? '#52c41a' : '#1890ff' }]}>
+                      {registration.event.status === 'completed' ? 'Đã hoàn thành' : 
+                       registration.event.status === 'ongoing' ? 'Đang diễn ra' : 'Sắp diễn ra'}
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
-            
-            {registration.consentDate && (
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>Ngày duyệt:</Text>
-                <Text style={styles.value}>{new Date(registration.consentDate).toLocaleDateString('vi-VN')}</Text>
+
+            {/* Thông tin học sinh */}
+            {registration.student && (
+              <View style={styles.card}>
+                <View style={styles.sectionHeader}>
+                  <MaterialIcons name="person" size={20} color="#1890ff" />
+                  <Text style={styles.sectionTitle}>Thông tin học sinh</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Họ và tên:</Text>
+                  <Text style={styles.value}>{registration.student.fullName}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Mã học sinh:</Text>
+                  <Text style={styles.value}>{registration.student.studentCode || registration.student.studentIdCode}</Text>
+                </View>
+                {registration.student.dob && (
+                  <>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Ngày sinh:</Text>
+                      <Text style={styles.value}>{formatDate(registration.student.dob)}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Tuổi:</Text>
+                      <Text style={styles.value}>{calculateAge(registration.student.dob)} tuổi</Text>
+                    </View>
+                  </>
+                )}
+                {registration.student.gender && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.label}>Giới tính:</Text>
+                    <Text style={styles.value}>{registration.student.gender === 'male' ? 'Nam' : 'Nữ'}</Text>
+                  </View>
+                )}
+                {registration.student.classId && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.label}>Lớp:</Text>
+                    <Text style={styles.value}>{registration.student.classId}</Text>
+                  </View>
+                )}
               </View>
             )}
-            
-            {registration.notes && (
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>Ghi chú:</Text>
-                <Text style={styles.value}>{registration.notes}</Text>
+
+            {/* Thông tin phụ huynh */}
+            {registration.parent && (
+              <View style={styles.card}>
+                <View style={styles.sectionHeader}>
+                  <MaterialIcons name="family-restroom" size={20} color="#1890ff" />
+                  <Text style={styles.sectionTitle}>Thông tin phụ huynh</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Họ và tên:</Text>
+                  <Text style={styles.value}>{registration.parent.fullName}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Email:</Text>
+                  <Text style={styles.value}>{registration.parent.email}</Text>
+                </View>
+                {registration.parent.phone && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.label}>Số điện thoại:</Text>
+                    <Text style={styles.value}>{registration.parent.phone}</Text>
+                  </View>
+                )}
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Vai trò:</Text>
+                  <Text style={styles.value}>Phụ huynh</Text>
+                </View>
               </View>
             )}
-            
-            {registration.cancellationReason && (
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>Lý do từ chối:</Text>
-                <Text style={styles.value}>{registration.cancellationReason}</Text>
+
+            {/* Ghi chú và lý do */}
+            {(registration.notes || registration.cancellationReason || registration.note) && (
+              <View style={styles.card}>
+                <View style={styles.sectionHeader}>
+                  <MaterialIcons name="note" size={20} color="#1890ff" />
+                  <Text style={styles.sectionTitle}>Ghi chú</Text>
+                </View>
+                {registration.notes && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.label}>Ghi chú:</Text>
+                    <Text style={styles.value}>{registration.notes}</Text>
+                  </View>
+                )}
+                {registration.note && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.label}>Ghi chú khác:</Text>
+                    <Text style={styles.value}>{registration.note}</Text>
+                  </View>
+                )}
+                {registration.cancellationReason && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.label}>Lý do từ chối:</Text>
+                    <Text style={[styles.value, { color: '#ff4d4f' }]}>{registration.cancellationReason}</Text>
+                  </View>
+                )}
               </View>
             )}
-          </View>
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -158,25 +300,93 @@ export default function RegistrationDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#f5f5f5",
   },
   header: {
+    backgroundColor: "#1890ff",
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     flexDirection: "row",
     alignItems: "center",
-    padding: 20,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+  },
+  backButton: {
+    marginRight: 15,
   },
   headerTitle: {
-    fontSize: 20,
+    color: "white",
+    fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
-    marginLeft: 16,
   },
   content: {
     flex: 1,
     padding: 20,
+  },
+  card: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1890ff",
+    marginLeft: 8,
+  },
+  statusContainer: {
+    alignItems: "flex-start",
+    marginBottom: 15,
+  },
+  statusLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginRight: 10,
+    color: "#333",
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  statusText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  infoRow: {
+    flexDirection: "row",
+    marginBottom: 12,
+    alignItems: "flex-start",
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+    width: 130,
+    marginRight: 10,
+  },
+  value: {
+    fontSize: 14,
+    color: "#333",
+    flex: 1,
+    lineHeight: 20,
   },
   loadingContainer: {
     flex: 1,
@@ -184,54 +394,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: 10,
     fontSize: 16,
     color: "#666",
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statusContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  statusLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginRight: 12,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  statusText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  infoRow: {
-    flexDirection: "row",
-    marginBottom: 12,
-  },
-  label: {
-    fontSize: 14,
-    color: "#666",
-    width: 120,
-  },
-  value: {
-    fontSize: 14,
-    color: "#333",
-    flex: 1,
-    fontWeight: "500",
   },
 });

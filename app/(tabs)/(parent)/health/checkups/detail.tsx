@@ -29,6 +29,7 @@ interface HealthCheckEvent {
   createdAt: string;
   updatedAt: string;
   __v: number;
+  status?: string; // Thêm trường status từ API
 }
 
 export default function HealthCheckDetailScreen() {
@@ -434,12 +435,21 @@ export default function HealthCheckDetailScreen() {
       event.endRegistrationDate
     );
     
-    const eventStatus =
-      new Date() > new Date(event.eventDate)
-        ? "completed"
-        : registrationStatus.status === 'open'
-        ? "ongoing"
-        : "upcoming";
+    // Ưu tiên status từ API nếu có, nếu không thì tính toán dựa trên ngày tháng
+    let eventStatus: string;
+    
+    if (event.status) {
+      // Sử dụng status từ API
+      eventStatus = event.status;
+    } else {
+      // Tính toán status dựa trên ngày tháng (logic cũ)
+      eventStatus =
+        new Date() > new Date(event.eventDate)
+          ? "completed"
+          : registrationStatus.status === 'open'
+          ? "ongoing"
+          : "upcoming";
+    }
 
     return (
       <View style={styles.content}>
@@ -557,48 +567,74 @@ export default function HealthCheckDetailScreen() {
             </View>
           </View>
 
-          {/* Logic hiển thị nút đăng ký dựa trên trạng thái */}
-          {registrationStatus.canRegister && !existingRegistration && (
-            <TouchableOpacity
-              style={[styles.registerButton, (isProcessing || isCheckingRegistration) && styles.disabledButton]}
-              onPress={handleRegister}
-              disabled={isProcessing || isCheckingRegistration}
-            >
-              {(isProcessing || isCheckingRegistration) ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <MaterialIcons name="app-registration" size={20} color="#fff" />
-              )}
-              <Text style={styles.registerButtonText}>
-                {isCheckingRegistration ? "Đang kiểm tra..." : isProcessing ? "Đang đăng ký..." : "Đăng ký tham gia"}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {existingRegistration && (
-            <View style={styles.alreadyRegisteredButton}>
-              <MaterialIcons name="check-circle" size={20} color="#7ED321" />
-              <Text style={styles.alreadyRegisteredText}>Đã đăng ký</Text>
-            </View>
-          )}
-
-          {registrationStatus.status === 'not_started' && (
-            <View style={[styles.statusButton, { backgroundColor: registrationStatus.bgColor }]}>
-              <MaterialIcons name="schedule" size={20} color={registrationStatus.color} />
-              <Text style={[styles.statusButtonText, { color: registrationStatus.color }]}>
-                {registrationStatus.text}
-              </Text>
-            </View>
-          )}
-
-          {registrationStatus.status === 'closed' && (
-            <View style={[styles.statusButton, { backgroundColor: registrationStatus.bgColor }]}>
-              <MaterialIcons name="event-busy" size={20} color={registrationStatus.color} />
-              <Text style={[styles.statusButtonText, { color: registrationStatus.color }]}>
-                {registrationStatus.text}
-              </Text>
-            </View>
-          )}
+          {/* Logic hiển thị nút đăng ký dựa trên trạng thái - ưu tiên theo thứ tự */}
+          {(() => {
+            // Nếu sự kiện đã hoàn thành
+            if (eventStatus === "completed") {
+              return (
+                <View style={styles.completedButton}>
+                  <MaterialIcons name="check-circle" size={20} color="#9B9B9B" />
+                  <Text style={styles.completedButtonText}>Sự kiện đã hoàn thành</Text>
+                </View>
+              );
+            }
+            
+            // Nếu đã có đăng ký
+            if (existingRegistration) {
+              return (
+                <View style={styles.alreadyRegisteredButton}>
+                  <MaterialIcons name="check-circle" size={20} color="#7ED321" />
+                  <Text style={styles.alreadyRegisteredText}>Đã đăng ký</Text>
+                </View>
+              );
+            }
+            
+            // Nếu có thể đăng ký (trong thời gian đăng ký)
+            if (registrationStatus.canRegister) {
+              return (
+                <TouchableOpacity
+                  style={[styles.registerButton, (isProcessing || isCheckingRegistration) && styles.disabledButton]}
+                  onPress={handleRegister}
+                  disabled={isProcessing || isCheckingRegistration}
+                >
+                  {(isProcessing || isCheckingRegistration) ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <MaterialIcons name="app-registration" size={20} color="#fff" />
+                  )}
+                  <Text style={styles.registerButtonText}>
+                    {isCheckingRegistration ? "Đang kiểm tra..." : isProcessing ? "Đang đăng ký..." : "Đăng ký tham gia"}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }
+            
+            // Nếu chưa mở đăng ký
+            if (registrationStatus.status === 'not_started') {
+              return (
+                <View style={[styles.statusButton, { backgroundColor: registrationStatus.bgColor }]}>
+                  <MaterialIcons name="schedule" size={20} color={registrationStatus.color} />
+                  <Text style={[styles.statusButtonText, { color: registrationStatus.color }]}>
+                    {registrationStatus.text}
+                  </Text>
+                </View>
+              );
+            }
+            
+            // Nếu đã hết hạn đăng ký
+            if (registrationStatus.status === 'closed') {
+              return (
+                <View style={[styles.statusButton, { backgroundColor: registrationStatus.bgColor }]}>
+                  <MaterialIcons name="event-busy" size={20} color={registrationStatus.color} />
+                  <Text style={[styles.statusButtonText, { color: registrationStatus.color }]}>
+                    {registrationStatus.text}
+                  </Text>
+                </View>
+              );
+            }
+            
+            return null;
+          })()}
         </View>
 
         <View style={styles.infoCard}>
@@ -1167,5 +1203,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
     color: '#7ED321',
+  },
+  completedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#9B9B9B',
+  },
+  completedButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+    color: '#9B9B9B',
   },
 });

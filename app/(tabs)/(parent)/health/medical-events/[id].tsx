@@ -63,12 +63,75 @@ export default function MedicalEventDetailScreen() {
     });
   };
 
-  const getSeverityColor = (isSerious: boolean) => {
-    return isSerious ? "#ff4d4f" : "#52c41a";
+  const getSeverityColor = (severityLevel: string) => {
+    switch (severityLevel?.toLowerCase()) {
+      case 'critical':
+        return "#ff4d4f";
+      case 'moderate':
+        return "#fa8c16";
+      case 'mild':
+        return "#52c41a";
+      default:
+        return "#8c8c8c";
+    }
   };
 
-  const getSeverityText = (isSerious: boolean) => {
-    return isSerious ? "Nghiêm trọng" : "Nhẹ";
+  const getSeverityText = (severityLevel: string) => {
+    switch (severityLevel?.toLowerCase()) {
+      case 'critical':
+        return "Nghiêm trọng";
+      case 'moderate':
+        return "Trung bình";
+      case 'mild':
+        return "Nhẹ";
+      default:
+        return "Không xác định";
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'monitoring':
+        return "#1890ff";
+      case 'transferred':
+        return "#fa8c16";
+      case 'resolved':
+        return "#52c41a";
+      case 'pending':
+        return "#faad14";
+      default:
+        return "#8c8c8c";
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'monitoring':
+        return "Đang theo dõi";
+      case 'transferred':
+        return "Đã chuyển viện";
+      case 'resolved':
+        return "Đã giải quyết";
+      case 'pending':
+        return "Chờ xử lý";
+      default:
+        return "Không xác định";
+    }
+  };
+
+  const getLeaveMethodText = (leaveMethod: string) => {
+    switch (leaveMethod?.toLowerCase()) {
+      case 'parent_pickup':
+        return "Phụ huynh đón";
+      case 'ambulance':
+        return "Xe cứu thương";
+      case 'self_discharge':
+        return "Tự về";
+      case 'none':
+        return "Không rời khỏi trường";
+      default:
+        return "Không xác định";
+    }
   };
 
   const renderInfoSection = (
@@ -210,11 +273,11 @@ export default function MedicalEventDetailScreen() {
             <View
               style={[
                 styles.statusIndicator,
-                { backgroundColor: getSeverityColor(medicalEvent.isSerious) },
+                { backgroundColor: getSeverityColor(medicalEvent.severityLevel) },
               ]}
             >
               <FontAwesome5
-                name={medicalEvent.isSerious ? "exclamation-triangle" : "check"}
+                name={medicalEvent.severityLevel === 'Critical' ? "exclamation-triangle" : "check"}
                 size={12}
                 color="#fff"
               />
@@ -232,12 +295,38 @@ export default function MedicalEventDetailScreen() {
             {renderInfoItem("Tên sự kiện", medicalEvent.eventName, true)}
             {renderInfoItem(
               "Mức độ nghiêm trọng",
-              getSeverityText(medicalEvent.isSerious),
+              getSeverityText(medicalEvent.severityLevel),
+              true
+            )}
+            {renderInfoItem(
+              "Trạng thái",
+              getStatusText(medicalEvent.status),
+              true
+            )}
+            {medicalEvent.leaveMethod && medicalEvent.leaveMethod !== 'none' && renderInfoItem(
+              "Phương thức rời khỏi trường",
+              getLeaveMethodText(medicalEvent.leaveMethod),
               true
             )}
             {renderInfoItem("Mô tả", medicalEvent.description)}
             {renderInfoItem("Hành động đã thực hiện", medicalEvent.actionTaken)}
             {renderInfoItem("Ghi chú", medicalEvent.notes)}
+            {medicalEvent.images && medicalEvent.images.length > 0 && (
+              <View style={styles.imagesSection}>
+                <Text style={styles.imagesLabel}>Hình ảnh ({medicalEvent.images.length})</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagesContainer}>
+                  {medicalEvent.images.map((imageUrl, index) => (
+                    <TouchableOpacity key={index} style={styles.imageWrapper}>
+                      <Image
+                        source={{ uri: imageUrl }}
+                        style={styles.eventImage}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
             {renderInfoItem(
               "Thời gian xảy ra",
               formatDate(medicalEvent.createdAt)
@@ -303,7 +392,7 @@ export default function MedicalEventDetailScreen() {
           )}
 
         {/* Thuốc đã sử dụng */}
-        {medicalEvent.medicines && medicalEvent.medicines.length > 0 && (
+        {medicalEvent.medicinesUsed && medicalEvent.medicinesUsed.length > 0 && (
           <View style={styles.infoSection}>
             <View style={styles.sectionHeader}>
               <FontAwesome5 name="pills" size={18} color="#fa8c16" />
@@ -315,25 +404,25 @@ export default function MedicalEventDetailScreen() {
                 ]}
               >
                 <Text style={[styles.countText, { color: "#fa8c16" }]}>
-                  {medicalEvent.medicines.length}
+                  {medicalEvent.medicinesUsed.length}
                 </Text>
               </View>
             </View>
             <View style={styles.sectionContent}>
-              {medicalEvent.medicines.map((medicine, index) =>
+              {medicalEvent.medicinesUsed.map((medicine, index) =>
                 renderMedicineItem(medicine, index)
               )}
             </View>
           </View>
         )}
 
-        {/* Dụng cụ y tế đã sử dụng */}
-        {medicalEvent.medicalSupplies &&
-          medicalEvent.medicalSupplies.length > 0 && (
+        {/* Vật tư y tế đã sử dụng */}
+        {medicalEvent.medicalSuppliesUsed &&
+          medicalEvent.medicalSuppliesUsed.length > 0 && (
             <View style={styles.infoSection}>
               <View style={styles.sectionHeader}>
-                <FontAwesome5 name="box" size={18} color="#13c2c2" />
-                <Text style={styles.sectionTitle}>Dụng cụ y tế</Text>
+                <FontAwesome5 name="first-aid" size={18} color="#13c2c2" />
+                <Text style={styles.sectionTitle}>Vật tư y tế đã sử dụng</Text>
                 <View
                   style={[
                     styles.countBadge,
@@ -341,12 +430,12 @@ export default function MedicalEventDetailScreen() {
                   ]}
                 >
                   <Text style={[styles.countText, { color: "#13c2c2" }]}>
-                    {medicalEvent.medicalSupplies.length}
+                    {medicalEvent.medicalSuppliesUsed.length}
                   </Text>
                 </View>
               </View>
               <View style={styles.sectionContent}>
-                {medicalEvent.medicalSupplies.map((supply, index) =>
+                {medicalEvent.medicalSuppliesUsed.map((supply, index) =>
                   renderSupplyItem(supply, index)
                 )}
               </View>
@@ -630,5 +719,35 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 40,
+  },
+  imagesSection: {
+    marginVertical: 12,
+  },
+  imagesLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#262626",
+    marginBottom: 8,
+  },
+  imagesContainer: {
+    flexDirection: "row",
+  },
+  imageWrapper: {
+    marginRight: 12,
+    borderRadius: 8,
+    overflow: "hidden",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+  },
+  eventImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 8,
   },
 });

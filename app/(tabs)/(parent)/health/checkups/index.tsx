@@ -31,6 +31,7 @@ interface HealthCheckEvent {
   endRegistrationDate: string;
   eventDate: string;
   schoolYear: string;
+  status?: string; // Thêm trường status từ API
   createdAt: string;
   updatedAt: string;
   __v: number;
@@ -236,8 +237,8 @@ export default function HealthCheckupsScreen() {
           const params = {
             pageNum: 1,
             pageSize: 10,
-            parentId: userId,
-            studentId: selectedStudent._id,
+            // parentId: userId,
+            // studentId: selectedStudent._id,
           };
 
           const historyResponse = await api.searchHealthCheckRegistrations(params);
@@ -387,15 +388,24 @@ export default function HealthCheckupsScreen() {
   );
 
   const renderHealthCheckEventItem = ({ item }: { item: HealthCheckEvent }) => {
-    const isRegistrationOpen =
-      new Date() >= new Date(item.startRegistrationDate) &&
-      new Date() <= new Date(item.endRegistrationDate);
-    const eventStatus =
-      new Date() > new Date(item.eventDate)
-        ? "completed"
-        : isRegistrationOpen
-        ? "ongoing"
-        : "upcoming";
+    // Ưu tiên status từ API nếu có, nếu không thì tính toán dựa trên ngày tháng
+    let eventStatus: string;
+    
+    if (item.status) {
+      // Sử dụng status từ API
+      eventStatus = item.status;
+    } else {
+      // Tính toán status dựa trên ngày tháng (logic cũ)
+      const isRegistrationOpen =
+        new Date() >= new Date(item.startRegistrationDate) &&
+        new Date() <= new Date(item.endRegistrationDate);
+      eventStatus =
+        new Date() > new Date(item.eventDate)
+          ? "completed"
+          : isRegistrationOpen
+          ? "ongoing"
+          : "upcoming";
+    }
 
     return (
       <TouchableOpacity
@@ -555,6 +565,10 @@ export default function HealthCheckupsScreen() {
     </View>
   );
 
+  const handleHistoryItemPress = (registrationId: string) => {
+    router.push(`/health/checkups/registration-detail?registrationId=${registrationId}`);
+  };
+
   const renderHistoryItem = ({ item }: { item: HealthCheckHistory }) => {
     console.log('Rendering history item:', item);
     const getStatusText = (status: string): string => {
@@ -605,7 +619,11 @@ export default function HealthCheckupsScreen() {
     // Kiểm tra nếu event null
     if (!item.event) {
       return (
-        <View style={styles.historyCard}>
+        <TouchableOpacity 
+          style={styles.historyCard}
+          onPress={() => handleHistoryItemPress(item._id)}
+          activeOpacity={0.7}
+        >
           <View style={styles.historyHeader}>
             <Text style={styles.historyTitle}>Sự kiện không xác định</Text>
             <View style={[
@@ -634,12 +652,16 @@ export default function HealthCheckupsScreen() {
               </View>
             )}
           </View>
-        </View>
+        </TouchableOpacity>
       );
     }
 
     return (
-      <View style={styles.historyCard}>
+      <TouchableOpacity 
+        style={styles.historyCard}
+        onPress={() => handleHistoryItemPress(item._id)}
+        activeOpacity={0.7}
+      >
         <View style={styles.historyHeader}>
           <Text style={styles.historyTitle}>{item.event.eventName}</Text>
           <View style={[
@@ -676,11 +698,11 @@ export default function HealthCheckupsScreen() {
         </View>
         
         {item.status === "completed" && (
-          <TouchableOpacity style={styles.viewResultButton}>
+          <View style={styles.viewResultButton}>
             <Text style={styles.viewResultButtonText}>Xem kết quả</Text>
-          </TouchableOpacity>
+          </View>
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 

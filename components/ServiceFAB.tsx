@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
   },
   mainButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#7F5FF5",
   },
   fabItem: {
     position: "absolute",

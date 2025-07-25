@@ -1,19 +1,19 @@
 import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
+import { MedicineSubmission, MedicineSubmissionDetailResponse } from "@/lib/types"
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons"
 import { router } from "expo-router"
 import { useEffect, useState } from "react"
-import { 
-  FlatList, 
-  StyleSheet, 
-  Text, 
-  TouchableOpacity, 
-  View, 
+import {
+  ActivityIndicator,
+  FlatList,
   RefreshControl,
-  ActivityIndicator
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { MedicineSubmission, MedicineSubmissionDetailResponse } from "@/lib/types"
 
 export default function MedicineHistoryScreen() {
   const { user } = useAuth()
@@ -173,12 +173,12 @@ export default function MedicineHistoryScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        {/* <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => router.push('/(tabs)/(parent)/profile')}
         >
           <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
         <Text style={styles.title}>Lịch sử uống thuốc</Text>
         <View style={styles.placeholder} />
       </View>

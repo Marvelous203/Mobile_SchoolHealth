@@ -676,6 +676,17 @@ export default function VaccineEventDetailScreen() {
               </View>
             </View>
             <View style={styles.descriptionContainer}>
+              {(eventData as any)?.provider && (
+                <View style={styles.providerContainer}>
+                  <View style={styles.providerIconBadge}>
+                    <Ionicons name="business" size={16} color="#6366f1" />
+                  </View>
+                  <View style={styles.providerInfo}>
+                    <Text style={styles.providerLabel}>Đơn vị tổ chức:</Text>
+                    <Text style={styles.providerText}>{(eventData as any).provider}</Text>
+                  </View>
+                </View>
+              )}
               <Text style={styles.modernDescription}>{eventData?.description}</Text>
             </View>
           </View>
@@ -2046,6 +2057,40 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderTopWidth: 1,
     borderTopColor: "#f1f5f9",
+  },
+  // Provider styles
+  providerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: "#6366f1",
+  },
+  providerIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#e0e7ff",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  providerInfo: {
+    flex: 1,
+  },
+  providerLabel: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  providerText: {
+    fontSize: 14,
+    color: "#1e293b",
+    fontWeight: "600",
   },
 
 })

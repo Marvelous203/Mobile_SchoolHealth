@@ -54,6 +54,22 @@ export default function HealthScreen() {
       color: "#fa8c16",
       route: "/(tabs)/(parent)/health/medicines",
     },
+    {
+      id: "vaccine-results",
+      title: "Kết quả Vaccine",
+      description: "Xem kết quả và trạng thái tiêm chủng",
+      icon: "clipboard-check",
+      color: "#722ed1",
+      route: "/(tabs)/(parent)/health/vaccine-results",
+    },
+    {
+      id: "medical-check-results",
+      title: "Kết quả khám sức khỏe",
+      description: "Xem kết quả và chi tiết khám sức khỏe",
+      icon: "heartbeat",
+      color: "#eb2f96",
+      route: "/(tabs)/(parent)/health/medical-check-results",
+    },
   ];
 
   return (

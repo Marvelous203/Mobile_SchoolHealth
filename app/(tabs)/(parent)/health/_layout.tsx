@@ -41,6 +41,19 @@ export default function HealthLayout() {
           title: "Thuốc",
         }}
       />
+      {/* Vaccine Results */}
+      <Stack.Screen
+        name="vaccine-results"
+        options={{
+          title: "Kết quả Vaccine",
+        }}
+      />
+      <Stack.Screen
+        name="medical-check-results"
+        options={{
+          title: "Kết quả khám sức khỏe",
+        }}
+      />
     </Stack>
   );
 }

@@ -2,7 +2,7 @@
 
 import { api, getCurrentUserId } from "@/lib/api"
 import type { VaccineEvent, VaccineRegistrationDetail, VaccineRegistrationSearchResponse } from "@/lib/types"
-import { Ionicons } from "@expo/vector-icons"
+import { Ionicons, MaterialIcons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { useEffect, useState } from "react"
 import {
@@ -684,14 +684,12 @@ export default function VaccinationsScreen() {
   // Render header function
   const renderHeader = () => (
     <View style={styles.modernHeader}>
-      {/* <View style={styles.headerTop}>
-        <TouchableOpacity style={styles.modernBackButton} onPress={() => router.back()}>
+      
+       <View style={styles.headerTop}>
+        <TouchableOpacity style={styles.modernBackButton} onPress={() => router.push("/(tabs)/(parent)/health")}>
           <MaterialIcons name="arrow-back" size={24} color="#374151" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.modernAddButton} onPress={handleRegisterPress}>
-          <Ionicons name="add" size={24} color="#fff" />
-        </TouchableOpacity>
-      </View> */}
+      </View>
 
       <View style={styles.headerContent}>
         <View style={styles.modernHeaderIcon}>

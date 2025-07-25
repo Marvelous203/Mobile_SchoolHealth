@@ -115,24 +115,37 @@ export interface MedicalEvent {
   actionTaken: string
   medicinesId: string[]
   medicalSuppliesId: string[]
-  isSerious: boolean
+  severityLevel: 'Critical' | 'Moderate' | 'Mild'
+  status: 'monitoring' | 'transferred' | 'resolved' | 'pending'
+  leaveMethod: 'parent_pickup' | 'ambulance' | 'self_discharge' | 'none'
+  images: string[]
   notes: string
+  isDeleted: boolean
   createdAt: string
   updatedAt: string
   __v: number
+  parent: any
   student: MedicalEventStudent
   schoolNurse: MedicalEventSchoolNurse
   medicines: MedicalEventMedicine[]
   medicalSupplies: MedicalEventSupply[]
+  medicinesUsed: MedicalEventMedicine[]
+  medicalSuppliesUsed: MedicalEventSupply[]
   id: string
+  // Legacy field for backward compatibility
+  isSerious?: boolean
 }
 
 export interface MedicalEventSearchParams {
   query?: string
+  studentId?: string
   userId?: string
-  isSerious?: boolean
+  severityLevel?: string
+  status?: string
   pageNum: number
   pageSize: number
+  // Legacy field for backward compatibility
+  isSerious?: boolean
 }
 
 export interface MedicalEventSearchResponse {
@@ -180,6 +193,79 @@ interface VaccineAppointment {
   isEligible: boolean
   reasonIfInEligible: string
   note: string
+}
+
+// Vaccine Appointment Result interfaces
+export interface VaccineAppointmentStudent {
+  _id: string
+  fullName: string
+  isDeleted: boolean
+  gender: 'male' | 'female'
+  dob: string
+  parents: {
+    type: 'father' | 'mother'
+    email: string
+    userId?: string
+  }[]
+  classId: string
+  avatar: string
+  studentCode: string
+  studentIdCode: string
+  createdAt: string
+  updatedAt: string
+  __v: number
+}
+
+export interface VaccineAppointmentEvent {
+  _id: string
+  title: string
+  gradeId: string
+  isDeleted: boolean
+  description: string
+  vaccineName: string
+  location: string
+  provider: string
+  startRegistrationDate: string
+  endRegistrationDate: string
+  eventDate: string
+  status: 'ongoing' | 'completed' | 'cancelled'
+  schoolYear: string
+  createdAt: string
+  updatedAt: string
+  __v: number
+}
+
+export interface VaccineAppointmentResult {
+  _id: string
+  studentId: string
+  eventId: string
+  isEligible: boolean
+  isDeleted: boolean
+  status: 'pending' | 'completed' | 'cancelled'
+  schoolYear: string
+  postVaccinationStatus: 'not_checked' | 'normal' | 'adverse_reaction'
+  createdAt: string
+  updatedAt: string
+  __v: number
+  student: VaccineAppointmentStudent
+  event: VaccineAppointmentEvent
+}
+
+export interface VaccineAppointmentSearchParams {
+  studentId?: string
+  schoolYear?: string
+  pageNum: number
+  pageSize: number
+}
+
+export interface VaccineAppointmentSearchResponse {
+  pageData: VaccineAppointmentResult[]
+  pageInfo: {
+    pageNum: number
+    pageSize: number
+    totalItems: number
+    totalPages: number
+  }
 }
 interface MecicalCheckEvents {
   id: string
@@ -291,6 +377,7 @@ export interface MedicineSubmissionDetailResponse {
       _id: string
       fullName: string
       studentCode: string
+      studentIdCode: string
       gender: string
       dob: string
       classId: {

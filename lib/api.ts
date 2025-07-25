@@ -19,7 +19,9 @@ import {
     MedicineSubmission,
     MedicineSubmissionDetailResponse,
     MedicineSubmissionSearchParams,
-    MedicineSubmissionSearchResponse
+    MedicineSubmissionSearchResponse,
+    VaccineAppointmentSearchParams,
+    VaccineAppointmentSearchResponse
 } from './types';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL
@@ -158,7 +160,7 @@ export interface RegisterRequest {
     image?: string
     fullName: string
     phone: string
-    role: "admin" | "parent" | "student" | "nurse"
+    role: "parent"
     isDeleted?: boolean
     studentParents?: StudentParent[]
 }
@@ -879,53 +881,22 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
     // Medical Events methods
     searchMedicalEvents: async (params: MedicalEventSearchParams): Promise<MedicalEventSearchResponse> => {
         try {
-            // Get current user profile to extract studentIds
-            let finalParams = { ...params }
+            console.log('🔍 Searching medical events with params:', params)
             
-            // If no specific studentId is provided, get all studentIds from current user profile
-            if (!finalParams.userId) {
-                try {
-                    const token = await AsyncStorage.getItem('token')
-                    if (token) {
-                        const userProfileResponse = await apiCall('/users/profile', {
-                            method: 'GET',
-                            headers: {
-                                Authorization: `Bearer ${token}`
-                            }
-                        })
-                        
-                        console.log('👤 Current user profile for medical events:', userProfileResponse.data)
-                        
-                        if (userProfileResponse.data && userProfileResponse.data.studentIds && userProfileResponse.data.studentIds.length > 0) {
-                            // Use the first studentId as default (or you can modify this logic as needed)
-                            finalParams.userId = userProfileResponse.data.studentIds[0]
-                            console.log('🎯 Using studentId from profile for medical events:', finalParams.userId)
-                            console.log('📚 Available studentIds:', userProfileResponse.data.studentIds)
-                        }
-                    }
-                } catch (profileError) {
-                    console.warn('⚠️ Could not get user profile for studentIds:', profileError)
-                    // Fallback to original logic if profile fetch fails
-                    const currentUserId = await getCurrentUserId()
-                    if (currentUserId) {
-                        finalParams.userId = currentUserId
-                        console.log('🔑 Fallback: using current userId for medical events:', currentUserId)
-                    }
-                }
-            }
-            
-            // Try different endpoint format based on Swagger documentation
             const queryParams = new URLSearchParams()
             
-            if (finalParams.query) queryParams.append('query', finalParams.query)
-            if (finalParams.userId) queryParams.append('userId', finalParams.userId)
-            if (finalParams.isSerious !== undefined) queryParams.append('isSerious', finalParams.isSerious.toString())
+            // Add pagination params
+            queryParams.append('pageNum', params.pageNum.toString())
+            queryParams.append('pageSize', params.pageSize.toString())
             
-            // Try format from Swagger: /medical-events/search with query params including pageNum and pageSize
-            const endpoint = `/medical-events/search?pageNum=${finalParams.pageNum}&pageSize=${finalParams.pageSize}${queryParams.toString() ? '&' + queryParams.toString() : ''}`
-            console.log('🔍 Searching medical events:', endpoint)
-            console.log('🌐 API_BASE_URL:', API_BASE_URL)
-            console.log('🔗 Full URL:', `${API_BASE_URL}${endpoint}`)
+            // Add optional params only if they have values
+            if (params.query) queryParams.append('query', params.query)
+            if (params.studentId) queryParams.append('studentId', params.studentId)
+            if (params.userId) queryParams.append('userId', params.userId)
+            if (params.isSerious !== undefined) queryParams.append('isSerious', params.isSerious.toString())
+            
+            const endpoint = `/medical-events/search?${queryParams.toString()}`
+            console.log('🔍 Medical events endpoint:', endpoint)
             
             const response = await apiCall(endpoint, {
                 method: 'GET'
@@ -1910,12 +1881,39 @@ export const getParentStudentGradeIds = async (): Promise<string[]> => {
         
         // Try to get grades from classes search first (since we see gradeId in classes)
         try {
-            const classesResponse = await apiCall('/classes/search?pageNum=1&pageSize=100&schoolYear=2024-2025', {
-                method: 'GET',
-                headers: {
-                    Authorization: `Bearer ${token}`
+            // Try current school year first, then fallback to previous year
+            const currentYear = new Date().getFullYear()
+            const schoolYears = [`${currentYear}-${currentYear + 1}`, `${currentYear - 1}-${currentYear}`]
+            
+            let classesResponse: any = null
+            for (const schoolYear of schoolYears) {
+                try {
+                    console.log(`🔍 Trying classes search with schoolYear: ${schoolYear}`)
+                    classesResponse = await apiCall(`/classes/search?pageNum=1&pageSize=100&schoolYear=${schoolYear}`, {
+                        method: 'GET',
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
+                    })
+                    if (classesResponse?.pageData?.length > 0) {
+                        console.log(`✅ Found classes data for schoolYear: ${schoolYear}`)
+                        break
+                    }
+                } catch (yearError) {
+                    console.log(`❌ Failed schoolYear ${schoolYear}:`, yearError)
                 }
-            })
+            }
+            
+            // If no school year worked, try without schoolYear parameter
+            if (!classesResponse?.pageData?.length) {
+                console.log('🔍 Trying classes search without schoolYear parameter')
+                classesResponse = await apiCall('/classes/search?pageNum=1&pageSize=100', {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                })
+            }
             
             console.log('📚 Classes search result:', classesResponse)
             
@@ -1942,7 +1940,7 @@ export const getParentStudentGradeIds = async (): Promise<string[]> => {
         }
         
         // Fallback: Get all grades once
-        const gradesResponse = await apiCall('/grades/search?pageNum=1&pageSize=50', {
+        const gradesResponse = await apiCall('/grades/search?pageNum=1&pageSize=10', {
             method: 'GET',
             headers: {
                 Authorization: `Bearer ${token}`
@@ -2036,6 +2034,73 @@ export interface UpdateStudentResponse {
   success: boolean;
   data?: Student;
   message?: string;
+}
+
+// Vaccine Appointments API
+export const searchVaccineAppointments = async (params: VaccineAppointmentSearchParams): Promise<VaccineAppointmentSearchResponse> => {
+  const queryParams = new URLSearchParams({
+    pageNum: params.pageNum.toString(),
+    pageSize: params.pageSize.toString(),
+  })
+  
+  if (params.studentId) {
+    queryParams.append('studentId', params.studentId)
+  }
+  
+  if (params.schoolYear) {
+    queryParams.append('schoolYear', params.schoolYear)
+  }
+  
+  const response = await apiCall(`/vaccine-appointments/search/${params.pageNum}/${params.pageSize}?${queryParams.toString()}`)
+  return response
+}
+
+// Get vaccine appointment detail by ID
+export const getVaccineAppointmentDetail = async (id: string) => {
+  const response = await apiCall(`/vaccine-appointments/${id}`)
+  return response
+}
+
+// Medical Check Appointments API
+export interface MedicalCheckAppointmentSearchParams {
+  pageNum: number;
+  pageSize: number;
+  studentId?: string;
+  schoolYear?: string;
+}
+
+export interface MedicalCheckAppointmentSearchResponse {
+  pageData: any[];
+  pageInfo: {
+    pageNum: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
+}
+
+export const searchMedicalCheckAppointments = async (params: MedicalCheckAppointmentSearchParams): Promise<MedicalCheckAppointmentSearchResponse> => {
+  const queryParams = new URLSearchParams({
+    pageNum: params.pageNum.toString(),
+    pageSize: params.pageSize.toString(),
+  })
+  
+  if (params.studentId) {
+    queryParams.append('studentId', params.studentId)
+  }
+  
+  if (params.schoolYear) {
+    queryParams.append('schoolYear', params.schoolYear)
+  }
+  
+  const response = await apiCall(`/medical-check-appoinments/search/${params.pageNum}/${params.pageSize}?${queryParams.toString()}`)
+  return response
+}
+
+// Get medical check appointment detail by ID
+export const getMedicalCheckAppointmentDetail = async (id: string) => {
+  const response = await apiCall(`/medical-check-appoinments/${id}`)
+  return response
 }
 
 

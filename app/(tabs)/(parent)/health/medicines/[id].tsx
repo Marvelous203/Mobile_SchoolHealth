@@ -1,20 +1,20 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { api, } from '@/lib/api'
 import { MedicineSubmissionDetailResponse } from '@/lib/types'
 import { Ionicons } from '@expo/vector-icons'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router, useLocalSearchParams } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Image,
-  Modal,
 } from 'react-native'
 
 export default function MedicineSubmissionDetailScreen() {

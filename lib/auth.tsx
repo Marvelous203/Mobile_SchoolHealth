@@ -25,7 +25,7 @@ export interface LoginResponse {
 // Register interfaces
 export interface StudentParent {
   studentCode: string;
-  type: "father" | "mother" | "guardian";
+  // type: "father" | "mother" | "guardian";
 }
 
 export interface RegisterRequest {

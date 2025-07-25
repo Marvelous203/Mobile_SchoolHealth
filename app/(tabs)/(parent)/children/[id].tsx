@@ -62,6 +62,7 @@ export default function StudentDetail() {
   const [student, setStudent] = useState<Student | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Health data state
   const [healthRecord, setHealthRecord] = useState<HealthRecord | null>(null);
@@ -165,6 +166,19 @@ export default function StudentDetail() {
     }
   };
 
+  const loadCurrentUser = async () => {
+    try {
+      const response = await api.getCurrentUser();
+      if (response && response.success && response.data) {
+        setCurrentUser(response.data);
+        return response.data;
+      }
+    } catch (error) {
+      console.error('Error loading current user:', error);
+    }
+    return null;
+  };
+
   const loadStudentData = async () => {
     try {
       setIsLoading(true);
@@ -173,6 +187,9 @@ export default function StudentDetail() {
       if (!id) {
         throw new Error("Student ID is required");
       }
+
+      // Load current user first
+      await loadCurrentUser();
 
       const studentResponse = await api.getStudentById(id);
       const studentData = (studentResponse as any).data || studentResponse;
@@ -210,32 +227,76 @@ export default function StudentDetail() {
       title: "Hồ sơ sức khỏe",
       icon: "file-medical-alt",
       colors: ["#667eea", "#764ba2"],
-      onPress: () => router.push("/(tabs)/(parent)/health/records" as any),
+      onPress: () => {
+        if (id && currentUser?._id) {
+          router.push({
+            pathname: "/(tabs)/(parent)/health/records" as any,
+            params: { studentId: id, parentId: currentUser._id }
+          });
+        } else {
+          router.push("/(tabs)/(parent)/health/records" as any);
+        }
+      },
     },
     {
       title: "Sự kiện y tế",
       icon: "exclamation-triangle",
       colors: ["#f093fb", "#f5576c"],
-      onPress: () =>
-        router.push("/(tabs)/(parent)/health/medical-events" as any),
+      onPress: () => {
+        if (id && currentUser?._id) {
+          router.push({
+            pathname: "/(tabs)/(parent)/health/medical-events" as any,
+            params: { studentId: id, parentId: currentUser._id }
+          });
+        } else {
+          router.push("/(tabs)/(parent)/health/medical-events" as any);
+        }
+      },
     },
     {
       title: "Tiêm chủng",
       icon: "syringe",
       colors: ["#43e97b", "#38f9d7"],
-      onPress: () => router.push("/(tabs)/(parent)/vaccinations" as any),
+      onPress: () => {
+        if (id && currentUser?._id) {
+          router.push({
+            pathname: "/(tabs)/(parent)/vaccinations" as any,
+            params: { studentId: id, parentId: currentUser._id }
+          });
+        } else {
+          router.push("/(tabs)/(parent)/vaccinations" as any);
+        }
+      },
     },
     {
       title: "Thuốc men",
       icon: "pills",
       colors: ["#fa709a", "#fee140"],
-      onPress: () => router.push("/(tabs)/(parent)/medicines" as any),
+      onPress: () => {
+        if (id && currentUser?._id) {
+          router.push({
+            pathname: "/(tabs)/(parent)/health/medicines" as any,
+            params: { studentId: id, parentId: currentUser._id }
+          });
+        } else {
+          router.push("/(tabs)/(parent)/health/medicines" as any);
+        }
+      },
     },
     {
       title: "Khám sức khỏe",
       icon: "stethoscope",
       colors: ["#4facfe", "#00f2fe"],
-      onPress: () => router.push("/(tabs)/(parent)/checkups" as any),
+      onPress: () => {
+        if (id && currentUser?._id) {
+          router.push({
+            pathname: "/(tabs)/(parent)/checkups" as any,
+            params: { studentId: id, parentId: currentUser._id }
+          });
+        } else {
+          router.push("/(tabs)/(parent)/checkups" as any);
+        }
+      },
     },
     {
       title: "Tin tức y tế",

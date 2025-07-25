@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
   api,
   CreateMedicineSubmissionRequest,
@@ -6,6 +5,7 @@ import {
   SchoolNurse,
 } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
