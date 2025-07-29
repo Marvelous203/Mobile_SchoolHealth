@@ -339,7 +339,7 @@ export default function HealthRecordDetailScreen() {
         {renderYearSelector()}
 
         {/* Student Information */}
-        {renderInfoSection(
+        {/* {renderInfoSection(
           "Thông tin học sinh",
           "user-graduate",
           <View>
@@ -360,7 +360,7 @@ export default function HealthRecordDetailScreen() {
             )}
           </View>,
           "#1890ff"
-        )}
+        )} */}
 
         {/* Thông tin tổng quan */}
         {renderInfoSection(
@@ -443,7 +443,7 @@ export default function HealthRecordDetailScreen() {
           "Thông tin hệ thống",
           "cog",
           <>
-            {renderInfoItem("ID hồ sơ", healthRecord._id)}
+            {/* {renderInfoItem("ID hồ sơ", healthRecord._id)} */}
             {renderInfoItem("Tạo lúc", formatDate(healthRecord.createdAt))}
             {renderInfoItem("Cập nhật lúc", formatDate(healthRecord.updatedAt))}
           </>,

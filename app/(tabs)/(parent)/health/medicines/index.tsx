@@ -387,20 +387,20 @@ export default function MedicinesScreen() {
       >
         {/* Header với nút back và tạo đơn thuốc */}
         <View style={styles.header}>
-          {/* <TouchableOpacity 
+          <TouchableOpacity 
             style={styles.backButton}
             onPress={() => router.push('/(tabs)/(parent)/health')}
           >
             <Ionicons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity> */}
-          {/* <View style={styles.headerTitleContainer}>
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>Quản lý thuốc</Text>
             {selectedStudent && (
               <Text style={styles.headerSubtitle}>
                 {selectedStudent.fullName} ({selectedStudent.studentIdCode})
               </Text>
             )}
-          </View> */}
+          </View>
           <TouchableOpacity 
             style={styles.createButton}
             onPress={handleCreateMedicine}
@@ -503,8 +503,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 8,
   },
   createButtonText: {

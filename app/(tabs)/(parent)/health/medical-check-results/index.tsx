@@ -1,6 +1,6 @@
-"use client";
-
-import { api, getCurrentUserId, MedicalCheckAppointmentSearchParams, searchMedicalCheckAppointments } from "@/lib/api";
+"use client"
+import { api, getCurrentUserId, searchMedicalCheckAppointments } from "@/lib/api";
+import { MedicalCheckAppointment, MedicalCheckAppointmentSearchParams, PostMedicalCheckStatus } from "@/lib/types";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -20,66 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
-// Medical Check Result interfaces
-interface MedicalCheckResult {
-  _id: string;
-  studentId: string;
-  eventId: string;
-  checkedBy: string;
-  height: number;
-  weight: number;
-  visionLeft: number;
-  visionRight: number;
-  bloodPressure: string;
-  heartRate: number;
-  notes: string;
-  isHealthy: boolean;
-  reasonIfUnhealthy?: string;
-  schoolYear: string;
-  postMedicalCheckStatus: "not_checked" | "checked" | "follow_up_required";
-  postMedicalCheckNotes?: string;
-  checkedAt: string;
-  medicalCheckedAt: string;
-  student?: {
-    _id: string;
-    fullName: string;
-    studentCode: string;
-    studentIdCode: string;
-    gender: "male" | "female";
-    dob: string;
-  };
-  event?: {
-    _id: string;
-    title: string;
-    eventName: string;
-    description: string;
-    location: string;
-    eventDate: string;
-  };
-  checker?: {
-    _id: string;
-    fullName: string;
-    phone: string;
-    email: string;
-  };
-}
-
-interface MedicalCheckResultSearchParams {
-  pageNum: number;
-  pageSize: number;
-  studentId?: string;
-  schoolYear?: string;
-}
-
-interface MedicalCheckResultSearchResponse {
-  pageData: MedicalCheckResult[];
-  pageInfo: {
-    pageNum: number;
-    pageSize: number;
-    totalItems: number;
-    totalPages: number;
-  };
-}
+// Using interfaces from types.ts
 
 interface Student {
   _id: string;
@@ -91,7 +32,7 @@ interface Student {
 }
 
 export default function MedicalCheckResultsScreen() {
-  const [medicalCheckResults, setMedicalCheckResults] = useState<MedicalCheckResult[]>([]);
+  const [medicalCheckResults, setMedicalCheckResults] = useState<MedicalCheckAppointment[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [selectedSchoolYear, setSelectedSchoolYear] = useState<string>("2025-2026");
@@ -192,46 +133,54 @@ export default function MedicalCheckResultsScreen() {
     setIsRefreshing(false);
   };
 
-  const getHealthStatusConfig = (isHealthy: boolean) => {
-    if (isHealthy) {
-      return {
-        text: "Khỏe mạnh",
-        color: "#10b981",
-        bgColor: "rgba(16, 185, 129, 0.1)",
-        icon: "checkmark-circle",
-      };
-    } else {
-      return {
-        text: "Cần theo dõi",
-        color: "#f59e0b",
-        bgColor: "rgba(245, 158, 11, 0.1)",
-        icon: "warning",
-      };
-    }
+  const getHealthStatusConfig = (isEligible: boolean) => {
+    return isEligible
+      ? {
+          color: "#10B981",
+          bgColor: "#ECFDF5",
+          text: "Đủ điều kiện",
+          icon: "checkmark-circle" as const,
+        }
+      : {
+          color: "#EF4444",
+          bgColor: "#FEF2F2",
+          text: "Không đủ điều kiện",
+          icon: "warning" as const,
+        };
   };
 
-  const getPostCheckStatusConfig = (status: string) => {
+  const getPostCheckStatusConfig = (status: PostMedicalCheckStatus) => {
     switch (status) {
-      case "checked":
+      case PostMedicalCheckStatus.Healthy:
         return {
-          text: "Đã kiểm tra",
-          color: "#10b981",
-          bgColor: "rgba(16, 185, 129, 0.1)",
-          icon: "checkmark-circle",
+          color: "#10B981",
+          bgColor: "#ECFDF5",
+          text: "Khỏe mạnh",
         };
-      case "follow_up_required":
+      case PostMedicalCheckStatus.NeedFollowUp:
         return {
+          color: "#F59E0B",
+          bgColor: "#FFFBEB",
           text: "Cần theo dõi",
-          color: "#f59e0b",
-          bgColor: "rgba(245, 158, 11, 0.1)",
-          icon: "warning",
         };
+      case PostMedicalCheckStatus.Sick:
+        return {
+          color: "#EF4444",
+          bgColor: "#FEF2F2",
+          text: "Phát hiện bệnh",
+        };
+      case PostMedicalCheckStatus.Other:
+        return {
+          color: "#8B5CF6",
+          bgColor: "#F3E8FF",
+          text: "Khác",
+        };
+      case PostMedicalCheckStatus.NotChecked:
       default:
         return {
-          text: "Chưa kiểm tra",
-          color: "#6b7280",
-          bgColor: "rgba(107, 114, 128, 0.1)",
-          icon: "time",
+          color: "#6B7280",
+          bgColor: "#F9FAFB",
+          text: "Chưa đánh giá",
         };
     }
   };
@@ -249,8 +198,8 @@ export default function MedicalCheckResultsScreen() {
     });
   };
 
-  const renderMedicalCheckResultItem = ({ item }: { item: MedicalCheckResult }) => {
-    const healthConfig = getHealthStatusConfig(item.isHealthy);
+  const renderMedicalCheckResultItem = ({ item }: { item: MedicalCheckAppointment }) => {
+    const healthConfig = getHealthStatusConfig(item.isEligible);
     const postCheckConfig = getPostCheckStatusConfig(item.postMedicalCheckStatus);
 
     return (

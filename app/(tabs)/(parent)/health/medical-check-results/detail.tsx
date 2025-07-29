@@ -16,54 +16,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getMedicalCheckAppointmentDetail } from "@/lib/api";
+import { MedicalCheckAppointment, PostMedicalCheckStatus } from "@/lib/types";
 
-// Medical Check Result Detail interface
-interface MedicalCheckResultDetail {
-  _id: string;
-  studentId: string;
-  eventId: string;
-  checkedBy: string;
-  height: number;
-  weight: number;
-  visionLeft: number;
-  visionRight: number;
-  bloodPressure: string;
-  heartRate: number;
-  notes: string;
-  isHealthy: boolean;
-  reasonIfUnhealthy?: string;
-  schoolYear: string;
-  postMedicalCheckStatus: "not_checked" | "checked" | "follow_up_required";
-  postMedicalCheckNotes?: string;
-  checkedAt: string;
-  medicalCheckedAt: string;
-  student?: {
-    _id: string;
-    fullName: string;
-    studentCode: string;
-    studentIdCode: string;
-    gender: "male" | "female";
-    dob: string;
-  };
-  event?: {
-    _id: string;
-    title: string;
-    eventName: string;
-    description: string;
-    location: string;
-    eventDate: string;
-  };
-  checker?: {
-    _id: string;
-    fullName: string;
-    phone: string;
-    email: string;
-  };
-}
+// Using interface from types.ts
 
 export default function MedicalCheckResultDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [medicalCheckResult, setMedicalCheckResult] = useState<MedicalCheckResultDetail | null>(null);
+  const [medicalCheckResult, setMedicalCheckResult] = useState<MedicalCheckAppointment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const scrollY = new Animated.Value(0);
@@ -98,46 +57,54 @@ export default function MedicalCheckResultDetailScreen() {
     setIsRefreshing(false);
   };
 
-  const getHealthStatusConfig = (isHealthy: boolean) => {
-    if (isHealthy) {
-      return {
-        text: "Khỏe mạnh",
-        color: "#10b981",
-        bgColor: "rgba(16, 185, 129, 0.1)",
-        icon: "checkmark-circle",
-      };
-    } else {
-      return {
-        text: "Cần theo dõi",
-        color: "#f59e0b",
-        bgColor: "rgba(245, 158, 11, 0.1)",
-        icon: "warning",
-      };
-    }
+  const getHealthStatusConfig = (isEligible: boolean) => {
+    return isEligible
+      ? {
+          color: "#10B981",
+          bgColor: "#ECFDF5",
+          text: "Đủ điều kiện",
+          icon: "checkmark-circle" as const,
+        }
+      : {
+          color: "#EF4444",
+          bgColor: "#FEF2F2",
+          text: "Không đủ điều kiện",
+          icon: "warning" as const,
+        };
   };
 
-  const getPostCheckStatusConfig = (status: string) => {
+  const getPostCheckStatusConfig = (status: PostMedicalCheckStatus) => {
     switch (status) {
-      case "checked":
+      case PostMedicalCheckStatus.Healthy:
         return {
-          text: "Đã kiểm tra",
-          color: "#10b981",
-          bgColor: "rgba(16, 185, 129, 0.1)",
-          icon: "checkmark-circle",
+          color: "#10B981",
+          bgColor: "#ECFDF5",
+          text: "Khỏe mạnh",
         };
-      case "follow_up_required":
+      case PostMedicalCheckStatus.NeedFollowUp:
         return {
+          color: "#F59E0B",
+          bgColor: "#FFFBEB",
           text: "Cần theo dõi",
-          color: "#f59e0b",
-          bgColor: "rgba(245, 158, 11, 0.1)",
-          icon: "warning",
         };
+      case PostMedicalCheckStatus.Sick:
+        return {
+          color: "#EF4444",
+          bgColor: "#FEF2F2",
+          text: "Phát hiện bệnh",
+        };
+      case PostMedicalCheckStatus.Other:
+        return {
+          color: "#8B5CF6",
+          bgColor: "#F3E8FF",
+          text: "Khác",
+        };
+      case PostMedicalCheckStatus.NotChecked:
       default:
         return {
-          text: "Chưa kiểm tra",
-          color: "#6b7280",
-          bgColor: "rgba(107, 114, 128, 0.1)",
-          icon: "time",
+          color: "#6B7280",
+          bgColor: "#F9FAFB",
+          text: "Chưa đánh giá",
         };
     }
   };
@@ -199,7 +166,7 @@ export default function MedicalCheckResultDetailScreen() {
     );
   }
 
-  const healthConfig = getHealthStatusConfig(medicalCheckResult.isHealthy);
+  const healthConfig = getHealthStatusConfig(medicalCheckResult.isEligible);
   const postCheckConfig = getPostCheckStatusConfig(medicalCheckResult.postMedicalCheckStatus);
   const bmi = calculateBMI(medicalCheckResult.weight, medicalCheckResult.height);
   const bmiStatus = getBMIStatus(parseFloat(bmi));
@@ -533,11 +500,11 @@ export default function MedicalCheckResultDetailScreen() {
                 </View>
               )}
 
-              {!medicalCheckResult.isHealthy && medicalCheckResult.reasonIfUnhealthy && (
+              {!medicalCheckResult.isEligible && medicalCheckResult.reasonIfIneligible && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Lý do cần theo dõi</Text>
-                    <Text style={styles.infoValue}>{medicalCheckResult.reasonIfUnhealthy}</Text>
+                    <Text style={styles.infoLabel}>Lý do không đủ điều kiện</Text>
+                    <Text style={styles.infoValue}>{medicalCheckResult.reasonIfIneligible}</Text>
                   </View>
                 </View>
               )}

@@ -491,42 +491,42 @@ export default function StudentDetail() {
     );
   };
 
-  const renderRecentActivities = () => (
-    <View style={styles.activitiesSection}>
-      <Text style={styles.sectionTitle}>Hoạt động gần đây</Text>
-      <LinearGradient
-        colors={["#fff", "#f8f9fa"]}
-        style={styles.activitiesCard}
-      >
-        <View style={styles.activityItem}>
-          <View style={[styles.activityDot, { backgroundColor: "#52c41a" }]} />
-          <View style={styles.activityContent}>
-            <Text style={styles.activityTitle}>Khám sức khỏe định kỳ</Text>
-            <Text style={styles.activityDate}>15/12/2024</Text>
-            <Text style={styles.activityDescription}>Kết quả: Bình thường</Text>
-          </View>
-        </View>
+  // const renderRecentActivities = () => (
+  //   <View style={styles.activitiesSection}>
+  //     <Text style={styles.sectionTitle}>Hoạt động gần đây</Text>
+  //     <LinearGradient
+  //       colors={["#fff", "#f8f9fa"]}
+  //       style={styles.activitiesCard}
+  //     >
+  //       <View style={styles.activityItem}>
+  //         <View style={[styles.activityDot, { backgroundColor: "#52c41a" }]} />
+  //         <View style={styles.activityContent}>
+  //           <Text style={styles.activityTitle}>Khám sức khỏe định kỳ</Text>
+  //           <Text style={styles.activityDate}>15/12/2024</Text>
+  //           <Text style={styles.activityDescription}>Kết quả: Bình thường</Text>
+  //         </View>
+  //       </View>
 
-        <View style={styles.activityItem}>
-          <View style={[styles.activityDot, { backgroundColor: "#1890ff" }]} />
-          <View style={styles.activityContent}>
-            <Text style={styles.activityTitle}>Tiêm vaccine cúm</Text>
-            <Text style={styles.activityDate}>01/12/2024</Text>
-            <Text style={styles.activityDescription}>Hoàn thành</Text>
-          </View>
-        </View>
+  //       <View style={styles.activityItem}>
+  //         <View style={[styles.activityDot, { backgroundColor: "#1890ff" }]} />
+  //         <View style={styles.activityContent}>
+  //           <Text style={styles.activityTitle}>Tiêm vaccine cúm</Text>
+  //           <Text style={styles.activityDate}>01/12/2024</Text>
+  //           <Text style={styles.activityDescription}>Hoàn thành</Text>
+  //         </View>
+  //       </View>
 
-        <View style={styles.activityItem}>
-          <View style={[styles.activityDot, { backgroundColor: "#fa8c16" }]} />
-          <View style={styles.activityContent}>
-            <Text style={styles.activityTitle}>Uống thuốc vitamin</Text>
-            <Text style={styles.activityDate}>Hôm nay</Text>
-            <Text style={styles.activityDescription}>Đang thực hiện</Text>
-          </View>
-        </View>
-      </LinearGradient>
-    </View>
-  );
+  //       <View style={styles.activityItem}>
+  //         <View style={[styles.activityDot, { backgroundColor: "#fa8c16" }]} />
+  //         <View style={styles.activityContent}>
+  //           <Text style={styles.activityTitle}>Uống thuốc vitamin</Text>
+  //           <Text style={styles.activityDate}>Hôm nay</Text>
+  //           <Text style={styles.activityDescription}>Đang thực hiện</Text>
+  //         </View>
+  //       </View>
+  //     </LinearGradient>
+  //   </View>
+  // );
 
   const handleUpdateProfile = async () => {
     try {
@@ -851,7 +851,7 @@ export default function StudentDetail() {
         {renderStudentProfile()}
         {renderQuickActions()}
         {renderHealthOverview()}
-        {renderRecentActivities()}
+        {/* {renderRecentActivities()} */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
       {renderMenu()}

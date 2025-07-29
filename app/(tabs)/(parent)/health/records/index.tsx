@@ -3,10 +3,11 @@ import type { HealthRecord, HealthRecordSearchParams } from "@/lib/types";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   FlatList,
   RefreshControl,
@@ -29,10 +30,29 @@ export default function HealthRecordsScreen() {
     {}
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const shimmerAnimation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadStudentIdAndRecords();
+    startShimmerAnimation();
   }, []);
+
+  const startShimmerAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnimation, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerAnimation, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
 
   useEffect(() => {
     if (searchQuery !== "") {
@@ -468,6 +488,77 @@ export default function HealthRecordsScreen() {
     </View>
   );
 
+  const renderSkeletonCard = ({ index }: { index: number }) => {
+    const shimmerTranslate = shimmerAnimation.interpolate({
+      inputRange: [0, 1],
+      outputRange: [-100, 100],
+    });
+
+    return (
+      <View
+        style={[
+          styles.recordBook,
+          {
+            marginLeft: index % 2 === 0 ? 20 : 10,
+            marginRight: index % 2 === 0 ? 10 : 20,
+          },
+        ]}
+      >
+        <View style={styles.skeletonCard}>
+          {/* Shimmer overlay */}
+          <Animated.View
+            style={[
+              styles.shimmerOverlay,
+              {
+                transform: [{ translateX: shimmerTranslate }],
+              },
+            ]}
+          />
+          
+          {/* Top section skeleton */}
+          <View style={styles.skeletonTopSection}>
+            <View style={styles.skeletonIcon} />
+            <View style={styles.skeletonBadge} />
+          </View>
+          
+          {/* Student name skeleton */}
+          <View style={styles.skeletonStudentName} />
+          
+          {/* Title section skeleton */}
+          <View style={styles.skeletonTitleSection}>
+            <View style={styles.skeletonTitle} />
+            <View style={styles.skeletonSubtitle} />
+          </View>
+          
+          {/* Bottom section skeleton */}
+          <View style={styles.skeletonBottomSection}>
+            <View style={styles.skeletonDate} />
+            <View style={styles.skeletonPageNumber} />
+          </View>
+        </View>
+        
+        {/* Shadow effect */}
+        <View style={styles.shadowEffect} />
+      </View>
+    );
+  };
+
+  const renderSkeletonLoader = () => {
+    return (
+      <View style={styles.skeletonContainer}>
+        <FlatList
+          data={Array(6).fill(0)}
+          renderItem={({ index }) => renderSkeletonCard({ index })}
+          keyExtractor={(_, index) => `skeleton-${index}`}
+          numColumns={2}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={false}
+        />
+      </View>
+    );
+  };
+
   const renderFooter = () => {
     if (!loading || healthRecords.length === 0) return null;
     return (
@@ -481,40 +572,31 @@ export default function HealthRecordsScreen() {
   if (loading && healthRecords.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
-        {renderHeader()}
-        <View style={styles.loadingContainer}>
-          <View
-            style={{
-              width: width * 0.3,
-              height: width * 0.4,
-              borderRadius: 16,
-              overflow: "hidden",
-              marginBottom: 20,
-              elevation: 8,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
-              shadowRadius: 8,
-            }}
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => router.back()}
           >
-            <LinearGradient
-              colors={["#667eea", "#764ba2"]}
-              style={{
-                flex: 1,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <FontAwesome5 name="book-medical" size={32} color="#fff" />
-            </LinearGradient>
-          </View>
-          <ActivityIndicator
-            size="large"
-            color="#667eea"
-            style={{ marginTop: 20 }}
-          />
-          <Text style={styles.loadingText}>Đang mở thư viện sức khỏe...</Text>
+            <MaterialIcons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Hồ sơ sức khỏe</Text>
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => router.push('/health/records/create')}
+          >
+            <MaterialIcons name="add" size={24} color="#1890ff" />
+          </TouchableOpacity>
         </View>
+        
+        {/* Search bar skeleton */}
+        <View style={styles.searchContainer}>
+          <View style={styles.skeletonSearchIcon} />
+          <View style={styles.skeletonSearchInput} />
+        </View>
+        
+        {/* Skeleton cards */}
+        {renderSkeletonLoader()}
       </SafeAreaView>
     );
   }
@@ -796,5 +878,105 @@ const styles = StyleSheet.create({
     color: "#999",
     fontSize: 14,
     marginVertical: 20,
+  },
+  // Skeleton loading styles
+  skeletonContainer: {
+    flex: 1,
+  },
+  skeletonCard: {
+    borderRadius: 16,
+    padding: 16,
+    height: 240,
+    backgroundColor: "#f0f0f0",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    position: "relative",
+    overflow: "hidden",
+  },
+  shimmerOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    width: 100,
+  },
+  skeletonTopSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  skeletonIcon: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#e0e0e0",
+  },
+  skeletonBadge: {
+    width: 60,
+    height: 20,
+    borderRadius: 12,
+    backgroundColor: "#e0e0e0",
+  },
+  skeletonStudentName: {
+    width: "80%",
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: "#e0e0e0",
+    marginBottom: 12,
+    alignSelf: "center",
+  },
+  skeletonTitleSection: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  skeletonTitle: {
+    width: "90%",
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: "#e0e0e0",
+    marginBottom: 8,
+  },
+  skeletonSubtitle: {
+    width: "60%",
+    height: 16,
+    borderRadius: 4,
+    backgroundColor: "#e0e0e0",
+  },
+  skeletonBottomSection: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: "auto",
+  },
+  skeletonDate: {
+    width: 60,
+    height: 12,
+    borderRadius: 4,
+    backgroundColor: "#e0e0e0",
+  },
+  skeletonPageNumber: {
+    width: 20,
+    height: 12,
+    borderRadius: 4,
+    backgroundColor: "#e0e0e0",
+  },
+  skeletonSearchIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#e0e0e0",
+  },
+  skeletonSearchInput: {
+    flex: 1,
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: "#e0e0e0",
+    marginLeft: 8,
   },
 });

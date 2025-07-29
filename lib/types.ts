@@ -653,6 +653,94 @@ export interface VaccineRegistrationDetail {
   createdAt: string
   updatedAt: string
 }
+// Medical Check Appointment Enums
+export enum PostMedicalCheckStatus {
+  NotChecked = 'not_checked',        // Chưa đánh giá
+  Healthy = 'healthy',               // Bình thường, khỏe mạnh
+  NeedFollowUp = 'need_follow_up',   // Cần theo dõi thêm
+  Sick = 'sick',                     // Phát hiện bệnh
+  Other = 'other',                   // Khác
+}
+
+export enum AppointmentStatus {
+  Pending = 'pending',
+  Checked = 'checked',
+  Cancelled = 'cancelled',
+  Ineligible = 'ineligible',
+  MedicalChecked = 'medicalChecked'
+}
+
+// Medical Check Appointment interfaces
+export interface MedicalCheckAppointment {
+  _id: string
+  studentId: string
+  eventId: string
+  checkedBy?: string
+  height?: number
+  weight?: number
+  visionLeft?: number
+  visionRight?: number
+  bloodPressure?: string
+  heartRate?: number
+  isEligible: boolean
+  reasonIfIneligible?: string
+  notes?: string
+  isDeleted: boolean
+  status: string
+  schoolYear: string
+  medicalCheckedAt?: string
+  postMedicalCheckStatus: PostMedicalCheckStatus
+  postMedicalCheckNotes?: string
+  createdAt?: string
+  updatedAt?: string
+  student?: {
+    _id: string
+    fullName: string
+    studentCode: string
+    studentIdCode: string
+    gender: 'male' | 'female'
+    dob: string
+  }
+  event?: {
+    _id: string
+    title: string
+    eventName: string
+    description: string
+    location: string
+    eventDate: string
+  }
+  checker?: {
+    _id: string
+    fullName: string
+    phone: string
+    email: string
+  }
+}
+
+export interface MedicalCheckAppointmentSearchParams {
+  pageNum: number
+  pageSize: number
+  studentId?: string
+  schoolYear?: string
+  status?: string
+}
+
+export interface MedicalCheckAppointmentSearchResponse {
+  pageData: MedicalCheckAppointment[]
+  pageInfo: {
+    pageNum: number
+    pageSize: number
+    totalItems: number
+    totalPages: number
+  }
+}
+
+export interface MedicalCheckAppointmentDetailResponse {
+  success: boolean
+  data: MedicalCheckAppointment
+  message?: string
+}
+
 // Thêm interface cho MedicineSubmission với thông tin học sinh
 // export interface MedicineSubmissionWithStudent extends MedicineSubmission {
 //   student?: {
