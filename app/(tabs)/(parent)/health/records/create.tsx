@@ -8,7 +8,7 @@ import {
 } from "@/lib/types";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -37,6 +37,10 @@ interface StudentData {
 
 export default function CreateHealthRecordScreen() {
   const router = useRouter();
+  const { cloneData, importData } = useLocalSearchParams<{
+    cloneData?: string;
+    importData?: string;
+  }>();
 
   const [loading, setLoading] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(true);
@@ -90,6 +94,72 @@ export default function CreateHealthRecordScreen() {
       determineNextSchoolYear(selectedStudent.id);
     }
   }, [selectedStudent]);
+
+  // Handle clone and import data
+  useEffect(() => {
+    if (cloneData) {
+      try {
+        const parsedData = JSON.parse(cloneData);
+        populateFormWithData(parsedData);
+      } catch (error) {
+        console.error('Error parsing clone data:', error);
+        Alert.alert('Lỗi', 'Dữ liệu sao chép không hợp lệ');
+      }
+    } else if (importData) {
+      try {
+        const parsedData = JSON.parse(importData);
+        populateFormWithData(parsedData);
+      } catch (error) {
+        console.error('Error parsing import data:', error);
+        Alert.alert('Lỗi', 'Dữ liệu nhập không hợp lệ');
+      }
+    }
+  }, [cloneData, importData, students, vaccineTypes]);
+
+  const populateFormWithData = (data: any) => {
+    try {
+      // Set form data
+      if (data.chronicDiseases) {
+        setChronicDiseasesInput(data.chronicDiseases.join(', '));
+      }
+      if (data.allergies) {
+        setAllergiesInput(data.allergies.join(', '));
+      }
+      if (data.pastTreatments) {
+        setPastTreatmentsInput(data.pastTreatments.join(', '));
+      }
+      if (data.height) {
+        setHeightInput(data.height.toString());
+      }
+      if (data.weight) {
+        setWeightInput(data.weight.toString());
+      }
+      if (data.vision) {
+        setFormData(prev => ({ ...prev, vision: data.vision }));
+      }
+      if (data.hearing) {
+        setFormData(prev => ({ ...prev, hearing: data.hearing }));
+      }
+      if (data.schoolYear) {
+        setFormData(prev => ({ ...prev, schoolYear: data.schoolYear }));
+      }
+      
+      // Set vaccination history
+      if (data.vaccinationHistory && vaccineTypes.length > 0) {
+        const selectedVaccines = data.vaccinationHistory
+          .map((vaccination: any) => {
+            return vaccineTypes.find(vt => vt._id === vaccination.vaccineTypeId);
+          })
+          .filter(Boolean);
+        setSelectedVaccineTypes(selectedVaccines);
+      }
+      
+      console.log('✅ Form populated with data');
+    } catch (error) {
+      console.error('Error populating form:', error);
+      Alert.alert('Lỗi', 'Không thể điền dữ liệu vào form');
+    }
+  };
 
   const loadStudents = async () => {
     try {

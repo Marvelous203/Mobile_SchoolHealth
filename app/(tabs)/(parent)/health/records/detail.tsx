@@ -1,8 +1,11 @@
-import { api, Student, getVaccineTypeById } from "@/lib/api";
+import { api, getVaccineTypeById, Student } from "@/lib/api";
 import { HealthRecord } from "@/lib/types";
 import { FontAwesome5 } from "@expo/vector-icons";
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -11,7 +14,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -31,6 +34,199 @@ export default function HealthRecordDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [vaccineDetails, setVaccineDetails] = useState<{[key: string]: any}>({});
+  const [showActionMenu, setShowActionMenu] = useState(false);
+
+  // Clone health record
+  const handleCloneRecord = () => {
+    setShowActionMenu(false);
+    Alert.alert(
+      "Sao chép hồ sơ",
+      "Bạn có muốn sao chép hồ sơ sức khỏe này không?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Sao chép",
+          onPress: () => {
+            // Navigate to create screen with pre-filled data
+            router.push({
+              pathname: "/(tabs)/(parent)/health/records/create",
+              params: {
+                studentId: healthRecord?.studentId,
+                cloneData: JSON.stringify({
+                  vision: healthRecord?.vision || '',
+                  hearing: healthRecord?.hearing || '',
+                  height: healthRecord?.height || '',
+                  weight: healthRecord?.weight || '',
+                  chronicDiseases: healthRecord?.chronicDiseases || [],
+                  allergies: healthRecord?.allergies || [],
+                  pastTreatments: healthRecord?.pastTreatments || [],
+                  vaccinationHistory: healthRecord?.vaccinationHistory || [],
+                })
+              }
+            });
+          }
+        }
+      ]
+    );
+  };
+
+  // Export health record
+  const handleExportRecord = async () => {
+    setShowActionMenu(false);
+    try {
+      // Check if essential data is available
+      if (!healthRecord) {
+        Alert.alert("Lỗi", "Không có dữ liệu hồ sơ sức khỏe để xuất");
+        return;
+      }
+
+      if (!studentInfo && !studentName) {
+        Alert.alert("Lỗi", "Không có thông tin học sinh để xuất");
+        return;
+      }
+
+      // Log data for debugging
+      console.log('Export data check:');
+      console.log('- healthRecord:', healthRecord ? 'Available' : 'NULL');
+      console.log('- studentInfo:', studentInfo ? 'Available' : 'NULL');
+      console.log('- studentName:', studentName || 'NULL');
+      console.log('- schoolYear:', healthRecord?.schoolYear || 'NULL');
+      console.log('- studentIdCode:', studentInfo?.studentIdCode || 'NULL');
+
+      const exportData = {
+        studentInfo: {
+          fullName: studentInfo?.fullName || studentName || 'Không có tên',
+          studentIdCode: studentInfo?.studentIdCode || 'Không có mã',
+        },
+        healthRecord: {
+          schoolYear: healthRecord?.schoolYear || 'Không có năm học',
+          vision: healthRecord?.vision || 'Chưa kiểm tra',
+          hearing: healthRecord?.hearing || 'Chưa kiểm tra',
+          height: healthRecord?.height || 'Chưa đo',
+          weight: healthRecord?.weight || 'Chưa đo',
+          chronicDiseases: healthRecord?.chronicDiseases || [],
+          allergies: healthRecord?.allergies || [],
+          pastTreatments: healthRecord?.pastTreatments || [],
+          vaccinationHistory: healthRecord?.vaccinationHistory || [],
+          createdAt: healthRecord?.createdAt || new Date().toISOString(),
+          updatedAt: healthRecord?.updatedAt || new Date().toISOString(),
+        },
+        exportedAt: new Date().toISOString(),
+        version: "1.0"
+      };
+
+      // Log export data for debugging
+      console.log('Final export data:', JSON.stringify(exportData, null, 2));
+
+      const fileName = `health_record_${studentInfo?.studentIdCode || 'unknown'}_${healthRecord?.schoolYear || 'unknown'}.json`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      
+      await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(exportData, null, 2));
+      
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        try {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/json',
+            dialogTitle: 'Xuất hồ sơ sức khỏe'
+          });
+          Alert.alert("Thành công", "Đã xuất hồ sơ sức khỏe thành công!");
+        } catch (shareError) {
+          console.log('Share failed, offering clipboard option:', shareError);
+          // If sharing fails, offer clipboard option
+          Alert.alert(
+            "Lỗi chia sẻ",
+            "Không thể chia sẻ file. Bạn có muốn copy nội dung vào clipboard để dán vào Google Drive không?",
+            [
+              { text: "Hủy", style: "cancel" },
+              {
+                text: "Copy vào Clipboard",
+                onPress: async () => {
+                  await Clipboard.setString(JSON.stringify(exportData, null, 2));
+                  Alert.alert("Thành công", "Đã copy nội dung hồ sơ vào clipboard. Bạn có thể dán vào Google Drive hoặc ứng dụng khác.");
+                }
+              }
+            ]
+          );
+        }
+      } else {
+        // Fallback: offer both file save and clipboard options
+        Alert.alert(
+          "Chọn cách xuất",
+          "Chọn phương thức xuất hồ sơ:",
+          [
+            { text: "Hủy", style: "cancel" },
+            {
+              text: "Lưu file",
+              onPress: () => {
+                Alert.alert(
+                  "File đã được tạo", 
+                  `File đã được lưu tại: ${fileUri}\n\nBạn có thể tìm file này trong thư mục Documents của ứng dụng.`
+                );
+              }
+            },
+            {
+              text: "Copy vào Clipboard",
+              onPress: async () => {
+                await Clipboard.setString(JSON.stringify(exportData, null, 2));
+                Alert.alert("Thành công", "Đã copy nội dung hồ sơ vào clipboard. Bạn có thể dán vào Google Drive hoặc ứng dụng khác.");
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      Alert.alert("Lỗi", "Không thể xuất hồ sơ sức khỏe");
+    }
+  };
+
+  // Import health record
+  const handleImportRecord = async () => {
+    setShowActionMenu(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/json',
+        copyToCacheDirectory: true
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const fileContent = await FileSystem.readAsStringAsync(result.assets[0].uri);
+        const importData = JSON.parse(fileContent);
+        
+        // Validate import data structure
+        if (!importData.healthRecord) {
+          Alert.alert("Lỗi", "File không đúng định dạng hồ sơ sức khỏe");
+          return;
+        }
+
+        Alert.alert(
+          "Nhập hồ sơ",
+          `Bạn có muốn nhập dữ liệu từ hồ sơ của ${importData.studentInfo?.fullName || 'học sinh'} không?\n\nLưu ý: Dữ liệu hiện tại sẽ được thay thế.`,
+          [
+            { text: "Hủy", style: "cancel" },
+            {
+              text: "Nhập",
+              onPress: () => {
+                // Navigate to create screen with imported data
+                router.push({
+                  pathname: "/(tabs)/(parent)/health/records/create",
+                  params: {
+                    studentId: healthRecord?.studentId,
+                    importData: JSON.stringify(importData.healthRecord)
+                  }
+                });
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Import error:', error);
+      Alert.alert("Lỗi", "Không thể đọc file. Vui lòng kiểm tra định dạng file.");
+    }
+  };
 
   // Load vaccine details for vaccination history
   const loadVaccineDetails = async (vaccinationHistory: any[]) => {
@@ -469,25 +665,70 @@ export default function HealthRecordDetailScreen() {
               </View>
             </View>
 
-            <View
-              style={[
-                styles.statusIndicator,
-                { backgroundColor: getHealthStatusColor(healthRecord) },
-              ]}
-            >
-              <FontAwesome5
-                name={
-                  getHealthStatus(healthRecord) === "Tốt"
-                    ? "check"
-                    : "exclamation"
-                }
-                size={12}
-                color="#fff"
-              />
+            <View style={styles.headerActions}>
+              <View
+                style={[
+                  styles.statusIndicator,
+                  { backgroundColor: getHealthStatusColor(healthRecord) },
+                ]}
+              >
+                <FontAwesome5
+                  name={
+                    getHealthStatus(healthRecord) === "Tốt"
+                      ? "check"
+                      : "exclamation"
+                  }
+                  size={12}
+                  color="#fff"
+                />
+              </View>
+              
+              <TouchableOpacity
+                style={styles.menuButton}
+                onPress={() => setShowActionMenu(!showActionMenu)}
+              >
+                <FontAwesome5 name="ellipsis-v" size={16} color="#fff" />
+              </TouchableOpacity>
             </View>
           </View>
         </LinearGradient>
       </View>
+
+      {/* Action Menu */}
+      {showActionMenu && (
+        <>
+          <TouchableOpacity
+            style={styles.actionMenuOverlay}
+            onPress={() => setShowActionMenu(false)}
+            activeOpacity={1}
+          />
+          <View style={styles.actionMenu}>
+          <TouchableOpacity
+            style={styles.actionMenuItem}
+            onPress={handleCloneRecord}
+          >
+            <FontAwesome5 name="copy" size={16} color="#1890ff" />
+            <Text style={styles.actionMenuText}>Sao chép hồ sơ</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.actionMenuItem}
+            onPress={handleExportRecord}
+          >
+            <FontAwesome5 name="download" size={16} color="#52c41a" />
+            <Text style={styles.actionMenuText}>Xuất hồ sơ</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.actionMenuItem}
+            onPress={handleImportRecord}
+          >
+            <FontAwesome5 name="upload" size={16} color="#fa8c16" />
+            <Text style={styles.actionMenuText}>Nhập hồ sơ</Text>
+          </TouchableOpacity>
+           </View>
+         </>
+       )}
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Year Selector */}
@@ -647,6 +888,55 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  menuButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actionMenu: {
+    position: "absolute",
+    top: 80,
+    right: 16,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    paddingVertical: 8,
+    zIndex: 2,
+    minWidth: 160,
+  },
+  actionMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  actionMenuText: {
+     fontSize: 14,
+     color: "#262626",
+     fontWeight: "500",
+   },
+   actionMenuOverlay: {
+     position: "absolute",
+     top: 0,
+     left: 0,
+     right: 0,
+     bottom: 0,
+     zIndex: 1,
+     backgroundColor: "transparent",
+   },
   headerText: {
     marginLeft: 12,
   },
