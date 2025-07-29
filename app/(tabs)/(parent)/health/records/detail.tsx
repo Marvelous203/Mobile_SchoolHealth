@@ -1,4 +1,4 @@
-import { api, Student } from "@/lib/api";
+import { api, Student, getVaccineTypeById } from "@/lib/api";
 import { HealthRecord } from "@/lib/types";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -30,6 +30,27 @@ export default function HealthRecordDetailScreen() {
   const [studentInfo, setStudentInfo] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState<string>("");
+  const [vaccineDetails, setVaccineDetails] = useState<{[key: string]: any}>({});
+
+  // Load vaccine details for vaccination history
+  const loadVaccineDetails = async (vaccinationHistory: any[]) => {
+    const details: {[key: string]: any} = {};
+    
+    for (const vaccination of vaccinationHistory) {
+      if (vaccination.vaccineTypeId && !details[vaccination.vaccineTypeId]) {
+        try {
+          const response = await getVaccineTypeById(vaccination.vaccineTypeId);
+          if (response.success && response.data) {
+            details[vaccination.vaccineTypeId] = response.data;
+          }
+        } catch (error) {
+          console.error('Error loading vaccine details:', error);
+        }
+      }
+    }
+    
+    setVaccineDetails(details);
+  };
 
   useEffect(() => {
     if (recordId) {
@@ -67,6 +88,11 @@ export default function HealthRecordDetailScreen() {
         setHealthRecord(mainRecord);
         setSelectedYear(mainRecord.schoolYear);
 
+        // Load vaccine details for vaccination history
+        if (mainRecord.vaccinationHistory && mainRecord.vaccinationHistory.length > 0) {
+          loadVaccineDetails(mainRecord.vaccinationHistory);
+        }
+
         console.log("📊 All records loaded:", records.length);
       } else {
         // Load single record (fallback)
@@ -75,6 +101,11 @@ export default function HealthRecordDetailScreen() {
           setHealthRecord(response.data);
           setAllHealthRecords([response.data]);
           setSelectedYear(response.data.schoolYear);
+          
+          // Load vaccine details for vaccination history
+          if (response.data.vaccinationHistory && response.data.vaccinationHistory.length > 0) {
+            loadVaccineDetails(response.data.vaccinationHistory);
+          }
         }
       }
 
@@ -209,12 +240,136 @@ export default function HealthRecordDetailScreen() {
     </View>
   );
 
+  const renderVaccinationSection = (
+    title: string,
+    vaccinations: any[],
+    icon: string,
+    emptyText: string,
+    iconColor: string = "#13c2c2"
+  ) => (
+    <View style={styles.infoSection}>
+      <View style={styles.sectionHeader}>
+        <FontAwesome5 name={icon as any} size={18} color={iconColor} />
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <View
+          style={[styles.countBadge, { backgroundColor: iconColor + "20" }]}
+        >
+          <Text style={[styles.countText, { color: iconColor }]}>
+            {vaccinations.length}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.sectionContent}>
+        {vaccinations.length > 0 ? (
+          vaccinations.map((vaccine, index) => {
+            // Get vaccine details from API if available
+            const vaccineDetail = vaccine.vaccineTypeId ? vaccineDetails[vaccine.vaccineTypeId] : null;
+            
+            // Handle both string and object formats for backward compatibility
+            let vaccineName = '';
+            let dateAdministered = undefined;
+            let provider = undefined;
+            let notes = undefined;
+            
+            if (typeof vaccine === 'string') {
+              vaccineName = vaccine;
+            } else if (typeof vaccine === 'object') {
+              // Use vaccine detail name if available, otherwise fallback to existing logic
+              if (vaccineDetail && vaccineDetail.name) {
+                vaccineName = vaccineDetail.name;
+              } else if (vaccine.vaccineName) {
+                vaccineName = vaccine.vaccineName;
+              } else if (vaccine._id && Object.keys(vaccine).some(key => !isNaN(Number(key)))) {
+                // Reconstruct string from indexed object
+                const keys = Object.keys(vaccine).filter(key => !isNaN(Number(key))).sort((a, b) => Number(a) - Number(b));
+                vaccineName = keys.map(key => vaccine[key]).join('');
+              } else {
+                vaccineName = 'Vaccine không xác định';
+              }
+              
+              dateAdministered = vaccine.dateAdministered || vaccine.injectedAt;
+              provider = vaccine.provider;
+              notes = vaccine.notes || vaccine.note;
+            }
+            
+            return (
+              <View key={index} style={[styles.listItem, { borderColor: iconColor + "30" }]}>
+                <FontAwesome5
+                  name="syringe"
+                  size={12}
+                  color={iconColor}
+                  style={styles.bulletIcon}
+                />
+                <View style={{ flex: 1 }}>
+                   <Text style={[styles.listItemText, { fontWeight: '600' }]}>{vaccineName}</Text>
+                   
+                   {/* Show vaccine code from API detail */}
+                   {vaccineDetail && vaccineDetail.code && (
+                     <Text style={[styles.listItemText, { fontSize: 12, color: '#1890ff', marginTop: 2, fontWeight: '500' }]}>
+                       Mã vaccine: {vaccineDetail.code}
+                     </Text>
+                   )}
+                   
+                   {/* Show vaccine description from API detail */}
+                   {vaccineDetail && vaccineDetail.description && (
+                     <Text style={[styles.listItemText, { fontSize: 12, color: '#52c41a', marginTop: 2 }]}>
+                       Mô tả: {vaccineDetail.description}
+                     </Text>
+                   )}
+                   
+                   {/* Show vaccine type from API detail */}
+                   {vaccineDetail && vaccineDetail.type && (
+                     <Text style={[styles.listItemText, { fontSize: 12, color: '#722ed1', marginTop: 2 }]}>
+                       Loại: {vaccineDetail.type}
+                     </Text>
+                   )}
+                   
+                   {/* Show manufacturer from API detail */}
+                   {vaccineDetail && vaccineDetail.manufacturer && (
+                     <Text style={[styles.listItemText, { fontSize: 12, color: '#fa8c16', marginTop: 2 }]}>
+                       Nhà sản xuất: {vaccineDetail.manufacturer}
+                     </Text>
+                   )}
+                   
+                   {dateAdministered && (
+                     <Text style={[styles.listItemText, { fontSize: 12, color: '#8c8c8c', marginTop: 2 }]}>
+                       Ngày tiêm: {new Date(dateAdministered).toLocaleDateString('vi-VN')}
+                     </Text>
+                   )}
+                   {provider && (
+                     <Text style={[styles.listItemText, { fontSize: 12, color: '#8c8c8c', marginTop: 2 }]}>
+                       Nơi tiêm: {provider}
+                     </Text>
+                   )}
+                   {notes && (
+                     <Text style={[styles.listItemText, { fontSize: 12, color: '#8c8c8c', marginTop: 2, fontStyle: 'italic' }]}>
+                       Ghi chú: {notes}
+                     </Text>
+                   )}
+                 </View>
+              </View>
+            );
+          })
+        ) : (
+          <Text style={styles.emptyListText}>{emptyText}</Text>
+        )}
+      </View>
+    </View>
+  );
+
   // Switch to different year record
   const switchToYear = (year: string) => {
     const record = allHealthRecords.find((r) => r.schoolYear === year);
     if (record) {
       setHealthRecord(record);
       setSelectedYear(year);
+      
+      // Load vaccine details for the new record's vaccination history
+      if (record.vaccinationHistory && record.vaccinationHistory.length > 0) {
+        loadVaccineDetails(record.vaccinationHistory);
+      } else {
+        setVaccineDetails({}); // Clear vaccine details if no vaccination history
+      }
     }
   };
 
@@ -430,7 +585,7 @@ export default function HealthRecordDetailScreen() {
         )}
 
         {/* Lịch sử tiêm chủng */}
-        {renderListSection(
+        {renderVaccinationSection(
           "Lịch sử tiêm chủng",
           healthRecord.vaccinationHistory,
           "syringe",

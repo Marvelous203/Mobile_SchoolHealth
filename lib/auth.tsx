@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Alert } from "react-native";
 import { UserProfile } from "./api";
 
 // Get API URL from environment variables
@@ -196,6 +197,7 @@ export interface User {
   phone?: string;
   image?: string;
   isDeleted?: boolean;
+  fullPermission?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -389,6 +391,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: profileData.email,
         role: profileData.role,
         fullName: profileData.fullName,
+        phone: profileData.phone,
+        image: profileData.image,
+        isDeleted: profileData.isDeleted,
+        fullPermission: profileData.fullPermission,
+        studentIds: profileData.studentIds,
+        createdAt: profileData.createdAt,
+        updatedAt: profileData.updatedAt,
       });
 
       console.log("✅ User profile refreshed");
@@ -427,4 +436,22 @@ export function useAuth() {
 export const getAuthHeaders = async () => {
   const token = await AsyncStorage.getItem("jwt_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// Helper function to check if user has full permission
+export const checkUserPermission = (user: User | null): boolean => {
+  if (!user) return false;
+  
+  // If fullPermission is not set, assume true for backward compatibility
+  // If fullPermission is explicitly false, user has limited access
+  return user.fullPermission !== false;
+};
+
+// Helper function to show permission denied alert
+export const showPermissionDeniedAlert = () => {
+  Alert.alert(
+    "Quyền truy cập bị hạn chế",
+    "Tài khoản của bạn chỉ có quyền xem thông tin. Vui lòng liên hệ nhà trường để biết thêm chi tiết.",
+    [{ text: "Đã hiểu", style: "default" }]
+  );
 };

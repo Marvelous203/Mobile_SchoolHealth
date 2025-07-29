@@ -36,15 +36,30 @@ export default function MedicineSubmissionDetailScreen() {
       
       const response = await api.getMedicineSubmissionById(id as string)
       
-      if (response.success && response.data) {
-        setSubmission(response.data)
-        console.log('✅ Submission detail loaded:', response.data)
+      if (response.success) {
+        let submissionData = null
         
-        // Thêm log chi tiết cho slotStatus
-        response.data.medicines.forEach((medicine, index) => {
-          console.log(`🔍 Medicine ${index} slotStatus:`, medicine.slotStatus)
-          console.log(`📊 SlotStatus length:`, medicine.slotStatus?.length || 0)
-        })
+        // Xử lý cả hai cấu trúc API: pageData array hoặc data object
+        if (response.pageData && response.pageData.length > 0) {
+          submissionData = response.pageData[0]
+        } else if (response.data) {
+          submissionData = response.data
+        }
+        
+        if (submissionData) {
+          setSubmission(submissionData)
+          console.log('✅ Submission detail loaded:', submissionData)
+          
+          // Thêm log chi tiết cho slotStatus
+          if (submissionData.medicines && Array.isArray(submissionData.medicines)) {
+            submissionData.medicines.forEach((medicine, index) => {
+              console.log(`🔍 Medicine ${index} slotStatus:`, medicine.slotStatus)
+              console.log(`📊 SlotStatus length:`, medicine.slotStatus?.length || 0)
+            })
+          }
+        } else {
+          Alert.alert('Lỗi', 'Không thể tải thông tin đơn thuốc')
+        }
       } else {
         Alert.alert('Lỗi', 'Không thể tải thông tin đơn thuốc')
       }
@@ -118,6 +133,9 @@ export default function MedicineSubmissionDetailScreen() {
   }
   
   const formatTimeSlots = (timeSlots: string[]) => {
+    if (!timeSlots || !Array.isArray(timeSlots)) {
+      return 'N/A'
+    }
     return timeSlots.map(timeSlot => {
       try {
         if (timeSlot.includes('T') && timeSlot.includes('Z')) {
@@ -137,20 +155,37 @@ export default function MedicineSubmissionDetailScreen() {
     }).join(', ')
   }
 
+  const formatTimeShifts = (timeShifts: string[]) => {
+    if (!timeShifts || !Array.isArray(timeShifts)) {
+      return 'N/A'
+    }
+    return timeShifts.map(shift => getShiftDisplayName(shift)).join(', ')
+  }
+
   const formatSlotTime = (timeString: string) => {
     try {
       const date = new Date(timeString)
-      return date.toLocaleTimeString('vi-VN', {
+      return date.toLocaleTimeString([], {
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        hour12: false
       })
     } catch {
       return timeString
     }
   }
 
+  const getShiftDisplayName = (shift: string) => {
+    switch (shift) {
+      case 'morning': return 'Sáng'
+      case 'noon': return 'Trưa'
+      case 'evening': return 'Tối'
+      default: return shift
+    }
+  }
+
   const renderSlotStatus = (slotStatus: any[]) => {
-    if (!slotStatus || slotStatus.length === 0) {
+    if (!slotStatus || !Array.isArray(slotStatus) || slotStatus.length === 0) {
       return null
     }
 
@@ -162,7 +197,7 @@ export default function MedicineSubmissionDetailScreen() {
             <View style={styles.slotStatusHeader}>
               <View style={styles.slotTimeContainer}>
                 <Ionicons name="time-outline" size={16} color="#666" />
-                <Text style={styles.slotTime}>{formatSlotTime(slot.time)}</Text>
+                <Text style={styles.slotTime}>{getShiftDisplayName(slot.shift)}</Text>
               </View>
               <View style={[styles.slotStatusBadge, { backgroundColor: getSlotStatusColor(slot.status) }]}>
                 <Ionicons 
@@ -213,6 +248,11 @@ export default function MedicineSubmissionDetailScreen() {
     if (!submission) return
     
     try {
+      if (!submission.medicines || !Array.isArray(submission.medicines)) {
+        Alert.alert('Lỗi', 'Không có dữ liệu thuốc để tái sử dụng')
+        return
+      }
+      
       const reuseData = {
         medicines: submission.medicines.map(medicine => ({
           name: medicine.name,
@@ -220,7 +260,7 @@ export default function MedicineSubmissionDetailScreen() {
           usageInstructions: medicine.usageInstructions,
           quantity: medicine.quantity,
           timesPerDay: medicine.timesPerDay,
-          timeSlots: medicine.timeSlots,
+          timeShifts: medicine.timeShifts,
           note: medicine.note,
           reason: medicine.reason
         })),
@@ -352,8 +392,8 @@ export default function MedicineSubmissionDetailScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Danh sách thuốc ({submission.medicines.length})</Text>
-          {submission.medicines.map((medicine, index) => (
+          <Text style={styles.sectionTitle}>Danh sách thuốc ({submission.medicines?.length || 0})</Text>
+          {submission.medicines && Array.isArray(submission.medicines) ? submission.medicines.map((medicine, index) => (
             <View key={medicine._id} style={styles.medicineCard}>
               <View style={styles.medicineHeader}>
                 <Text style={styles.medicineName}>{medicine.name}</Text>
@@ -378,7 +418,7 @@ export default function MedicineSubmissionDetailScreen() {
                 
                 <View style={styles.medicineRow}>
                   <Text style={styles.medicineLabel}>Giờ uống:</Text>
-                  <Text style={styles.medicineValue}>{formatTimeSlots(medicine.timeSlots)}</Text>
+                  <Text style={styles.medicineValue}>{formatTimeShifts(medicine.timeShifts)}</Text>
                 </View>
                 
                 {medicine.reason && (
@@ -398,7 +438,11 @@ export default function MedicineSubmissionDetailScreen() {
               
               {renderSlotStatus(medicine.slotStatus)}
             </View>
-          ))}
+          )) : (
+            <View style={styles.infoCard}>
+              <Text style={styles.infoValue}>Không có dữ liệu thuốc</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>

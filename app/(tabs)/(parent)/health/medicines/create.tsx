@@ -4,6 +4,7 @@ import {
   MedicineItem,
   SchoolNurse,
 } from "@/lib/api";
+import { checkUserPermission, showPermissionDeniedAlert, useAuth } from "@/lib/auth";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from "expo-router";
@@ -23,8 +24,7 @@ import {
   View,
 } from "react-native";
 
-// Import auth context
-import { useAuth } from "@/lib/auth";
+
 
 // Thêm interface và helper functions mới
 interface ParsedDosage {
@@ -33,17 +33,29 @@ interface ParsedDosage {
   type: 'solid' | 'liquid' | 'powder'; // viên/gói vs ml/lít
 }
 
-// Hàm parse dosage thông minh
+// Hàm parse dosage thông minh với hỗ trợ phân số
 const parseDosage = (dosageString: string): ParsedDosage | null => {
   if (!dosageString.trim()) return null;
   
-  // Regex để extract số và đơn vị
-  const match = dosageString.match(/(\d+(?:\.\d+)?)\s*(viên|ml|gói|thìa|lít|g|mg|mcg|cc)/i);
+  // Xử lý phân số đặc biệt
+  let normalizedDosage = dosageString
+    .replace(/½/g, '0.5')
+    .replace(/¼/g, '0.25')
+    .replace(/¾/g, '0.75')
+    .replace(/1\/2/g, '0.5')
+    .replace(/1\/4/g, '0.25')
+    .replace(/3\/4/g, '0.75');
+  
+  // Regex để extract số và đơn vị (bao gồm số thập phân)
+  const match = normalizedDosage.match(/(\d+(?:\.\d+)?)\s*(viên|ml|gói|thìa|lít|g|mg|mcg|cc)/i);
   
   if (!match) return null;
   
   const amount = parseFloat(match[1]);
   const unit = match[2].toLowerCase();
+  
+  // Kiểm tra số hợp lệ
+  if (isNaN(amount) || amount <= 0) return null;
   
   // Phân loại loại thuốc
   const liquidUnits = ['ml', 'lít', 'cc'];
@@ -63,18 +75,24 @@ const parseDosage = (dosageString: string): ParsedDosage | null => {
 
 // Hàm tính toán quantity thông minh dựa trên loại thuốc
 const calculateSmartQuantity = (dosage: string, timesPerDay: number, daysOfUse: number): number => {
+  // Kiểm tra tham số đầu vào
+  if (!dosage || timesPerDay <= 0 || daysOfUse <= 0) {
+    return 0;
+  }
+  
   const parsed = parseDosage(dosage);
   
   if (!parsed) {
-    // Fallback: tính theo cách cũ
-    return timesPerDay * daysOfUse;
+    // Fallback: tính theo cách cũ cho các trường hợp không parse được
+    return Math.max(1, timesPerDay * daysOfUse);
   }
   
   const totalDosageNeeded = parsed.amount * timesPerDay * daysOfUse;
   
-  // Đối với thuốc lỏng, làm tròn lên để đảm bảo đủ
+  // Đối với thuốc lỏng, thêm 10% dự phòng và làm tròn lên
   if (parsed.type === 'liquid') {
-    return Math.ceil(totalDosageNeeded);
+    const withBuffer = totalDosageNeeded * 1.1; // Thêm 10% dự phòng
+    return Math.ceil(withBuffer);
   }
   
   // Đối với thuốc rắn (viên, gói), làm tròn lên
@@ -117,7 +135,7 @@ export default function CreateMedicineScreen() {
       usageInstructions: "",
       quantity: 1,
       timesPerDay: 1,
-      timeSlots: ["08:00"],
+      timeShifts: ["morning"],
       note: "",
       reason: "",
     },
@@ -149,27 +167,11 @@ export default function CreateMedicineScreen() {
       const reuseDataString = await AsyncStorage.getItem('medicineReuseData')
       if (reuseDataString) {
         const reuseData = JSON.parse(reuseDataString)
-        if (reuseData.medicines) {
-          // Chuyển đổi timeSlots từ ISO string về HH:MM format
+        if (reuseData.medicines && Array.isArray(reuseData.medicines)) {
+          // Đảm bảo timeShifts tồn tại cho các medicine đã lưu
           const processedMedicines = reuseData.medicines.map(medicine => ({
             ...medicine,
-            timeSlots: medicine.timeSlots.map(timeSlot => {
-              try {
-                const date = new Date(timeSlot)
-                if (isNaN(date.getTime())) {
-                  // Nếu không phải Date object, có thể đã là string time như "08:00"
-                  return timeSlot
-                }
-                // Chuyển đổi về format HH:MM
-                return date.toLocaleTimeString('vi-VN', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hour12: false
-                })
-              } catch {
-                return timeSlot
-              }
-            })
+            timeShifts: medicine.timeShifts || ['morning'] // Default nếu không có timeShifts
           }))
           
           setMedicines(processedMedicines)
@@ -200,7 +202,7 @@ export default function CreateMedicineScreen() {
       console.log("✅ User profile loaded:", profile);
 
       // Load all students data if available
-      if (profile.studentIds && profile.studentIds.length > 0) {
+      if (profile.studentIds && Array.isArray(profile.studentIds) && profile.studentIds.length > 0) {
         console.log("📚 Loading students data for IDs:", profile.studentIds);
 
         const studentPromises = profile.studentIds.map((studentId: string) =>
@@ -237,7 +239,8 @@ export default function CreateMedicineScreen() {
     try {
       setLoadingNurses(true);
       const response = await api.searchSchoolNurses(1, 20, query);
-      setSchoolNurses(response.pageData);
+      const nurses = response.pageData || [];
+      setSchoolNurses(nurses);
 
       // Tự động chọn y tá từ reuse data chỉ khi cần thiết
       if (params.reuse === 'true' && !selectedNurse) {
@@ -246,7 +249,7 @@ export default function CreateMedicineScreen() {
           if (reuseDataString) {
             const reuseData = JSON.parse(reuseDataString)
             if (reuseData.schoolNurseId) {
-              const targetNurse = response.pageData.find(nurse => nurse._id === reuseData.schoolNurseId)
+              const targetNurse = nurses.find(nurse => nurse._id === reuseData.schoolNurseId)
               if (targetNurse) {
                 setSelectedNurse(targetNurse)
                 console.log('✅ Nurse auto-selected from reuse data:', targetNurse.fullName)
@@ -259,8 +262,8 @@ export default function CreateMedicineScreen() {
         }
       }
 
-      if (!selectedNurse && response.pageData.length > 0) {
-        setSelectedNurse(response.pageData[0]);
+      if (!selectedNurse && nurses.length > 0) {
+        setSelectedNurse(nurses[0]);
       }
     } catch (error) {
       console.error("Load school nurses error:", error);
@@ -287,13 +290,34 @@ export default function CreateMedicineScreen() {
   // Helper functions for medicine management
   const getCurrentMedicine = () => medicines[currentMedicineIndex];
 
-  // Cập nhật hàm updateCurrentMedicine
+  // Cập nhật hàm updateCurrentMedicine với tính năng tự động tính toán
   const updateCurrentMedicine = (updates: Partial<MedicineItem>) => {
     const newMedicines = [...medicines];
+    const currentMedicine = newMedicines[currentMedicineIndex];
     const updatedMedicine = {
-      ...newMedicines[currentMedicineIndex],
+      ...currentMedicine,
       ...updates,
     };
+    
+    // Tự động tính toán số lượng khi thay đổi liều lượng hoặc số lần/ngày
+    if (updates.dosage !== undefined || updates.timesPerDay !== undefined) {
+      const finalDosage = updates.dosage !== undefined ? updates.dosage : currentMedicine.dosage;
+      const finalTimesPerDay = updates.timesPerDay !== undefined ? updates.timesPerDay : currentMedicine.timesPerDay;
+      
+      // Chỉ tự động tính toán nếu có đủ thông tin và liều lượng hợp lệ
+      if (finalDosage && finalTimesPerDay > 0) {
+        const smartQuantity = calculateSmartQuantity(
+          finalDosage,
+          finalTimesPerDay,
+          daysOfUse
+        );
+        
+        // Chỉ cập nhật quantity nếu tính toán thành công (> 0)
+        if (smartQuantity > 0) {
+          updatedMedicine.quantity = smartQuantity;
+        }
+      }
+    }
     
     newMedicines[currentMedicineIndex] = updatedMedicine;
     setMedicines(newMedicines);
@@ -306,7 +330,7 @@ export default function CreateMedicineScreen() {
       usageInstructions: "",
       quantity: 1,
       timesPerDay: 1,
-      timeSlots: ["08:00"],
+      timeShifts: ["morning"],
       note: "",
       reason: "",
     };
@@ -326,50 +350,109 @@ export default function CreateMedicineScreen() {
     }
   };
 
-  const handleTimeSlotChange = (index: number, value: string) => {
-    // Validation format HH:MM
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+  const isShiftAvailable = (shift: string) => {
+    const now = new Date();
+    const currentHour = now.getHours();
     
-    const currentMedicine = getCurrentMedicine();
-    const newTimeSlots = [...currentMedicine.timeSlots];
-    newTimeSlots[index] = value;
-    
-    // Hiển thị warning nếu format không đúng
-    if (value && !timeRegex.test(value)) {
-      // Có thể thêm state để hiển thị warning
-      console.warn('Invalid time format. Please use HH:MM format.');
-    }
-    
-    updateCurrentMedicine({ timeSlots: newTimeSlots });
-  };
-
-  const addTimeSlot = () => {
-    const currentMedicine = getCurrentMedicine();
-    if (currentMedicine.timeSlots.length < 6) {
-      updateCurrentMedicine({
-        timeSlots: [...currentMedicine.timeSlots, "12:00"],
-      });
+    switch (shift) {
+      case 'morning':
+        // Ca sáng: 6h - 11h - có thể chọn nếu chưa qua 11h
+        return currentHour <= 11;
+      case 'noon':
+        // Ca trưa: 11h - 15h - có thể chọn nếu chưa qua 15h
+        return currentHour <= 15;
+      case 'evening':
+        // Ca chiều: 15h - 21h - có thể chọn nếu chưa qua 21h
+        return currentHour <= 21;
+      default:
+        return true;
     }
   };
 
-  const removeTimeSlot = (index: number) => {
+  const getShiftTimeRange = (shift: string) => {
+    switch (shift) {
+      case 'morning': return '6h - 11h';
+      case 'noon': return '11h - 15h';
+      case 'evening': return '15h - 21h';
+      default: return '';
+    }
+  };
+
+  const handleTimeShiftChange = (shift: string, isSelected: boolean) => {
     const currentMedicine = getCurrentMedicine();
-    if (currentMedicine.timeSlots.length > 1) {
-      const newTimeSlots = currentMedicine.timeSlots.filter(
-        (_, i) => i !== index
+    let newTimeShifts = [...currentMedicine.timeShifts];
+    
+    if (isSelected) {
+      // Thêm ca nếu chưa có
+      if (!newTimeShifts.includes(shift)) {
+        newTimeShifts.push(shift);
+      }
+    } else {
+      // Xóa ca nếu có
+      newTimeShifts = newTimeShifts.filter(s => s !== shift);
+    }
+    
+    // Đảm bảo ít nhất có 1 ca
+    if (newTimeShifts.length === 0) {
+      Alert.alert(
+        'Cần chọn ít nhất 1 ca',
+        'Vui lòng chọn ít nhất một ca uống thuốc.',
+        [{ text: 'OK' }]
       );
-      updateCurrentMedicine({ timeSlots: newTimeSlots });
+      return;
     }
+    
+    // Cập nhật timeShifts
+    updateCurrentMedicine({ 
+      timeShifts: newTimeShifts
+    });
+  };
+
+  const getShiftDisplayName = (shift: string) => {
+    const shiftNames = {
+      morning: "Sáng",
+      noon: "Trưa", 
+      evening: "Chiều"
+    };
+    return shiftNames[shift] || shift;
   };
 
   const handleSubmit = async () => {
     console.log("🚀 Submit button pressed!");
+
+    // Check user permission first
+    if (!checkUserPermission(user)) {
+      showPermissionDeniedAlert();
+      return;
+    }
 
     // Validation for all medicines
     for (let i = 0; i < medicines.length; i++) {
       const medicine = medicines[i];
       if (!medicine.name.trim()) {
         Alert.alert("Lỗi", `Vui lòng nhập tên thuốc cho thuốc thứ ${i + 1}`);
+        setCurrentMedicineIndex(i);
+        return;
+      }
+      
+      // Kiểm tra số lượng ca phải bằng với timesPerDay
+      if (medicine.timeShifts.length !== medicine.timesPerDay) {
+        Alert.alert(
+          "Lỗi", 
+          `Thuốc thứ ${i + 1}: Số ca được chọn (${medicine.timeShifts.length}) phải bằng với số lần/ngày (${medicine.timesPerDay}). Vui lòng điều chỉnh lại.`
+        );
+        setCurrentMedicineIndex(i);
+        return;
+      }
+      
+      // Kiểm tra các ca được chọn có phù hợp với thời gian hiện tại không
+      const invalidShifts = medicine.timeShifts.filter(shift => !isShiftAvailable(shift));
+      if (invalidShifts.length > 0) {
+        const invalidShiftNames = invalidShifts.map(shift => `${getShiftDisplayName(shift)} (${getShiftTimeRange(shift)})`);
+        Alert.alert(
+          "Thời gian không hợp lệ",
+          `Thuốc thứ ${i + 1}: Các ca sau không phù hợp với thời gian hiện tại:\n${invalidShiftNames.join(', ')}\n\nVui lòng chọn lại các ca phù hợp.`
+        );
         setCurrentMedicineIndex(i);
         return;
       }
@@ -391,52 +474,17 @@ export default function CreateMedicineScreen() {
     setLoading(true);
 
     try {
-      // Format medicines data đơn giản hơn
+      // Format medicines data với timeShifts
       const formattedMedicines = medicines.map(medicine => {
-        // Ensure timeSlots is an array of strings first
-        let timeSlots: string[];
-        if (typeof medicine.timeSlots === 'string') {
-          try {
-            timeSlots = JSON.parse(medicine.timeSlots);
-          } catch {
-            timeSlots = [medicine.timeSlots];
-          }
-        } else {
-          timeSlots = medicine.timeSlots;
-        }
-
-        // Convert timeSlots to Date objects for backend (chỉ giờ, không cần ngày cụ thể)
-        const timeSlotsAsDateObjects = timeSlots.map(timeSlot => {
-          const [hours, minutes] = timeSlot.split(':');
-          const date = new Date();
-          date.setUTCHours(parseInt(hours), parseInt(minutes), 0, 0);
-          return date.toISOString();
-        });
-
-        // Create slotStatus with proper Date objects
-        const slotStatus = timeSlots.map(timeSlot => {
-          const [hours, minutes] = timeSlot.split(':');
-          const date = new Date();
-          date.setUTCHours(parseInt(hours), parseInt(minutes), 0, 0);
-          
-          return {
-            time: date.toISOString(),
-            status: 'pending' as const,
-            administeredBy: null,
-            notes: ''
-          };
-        });
-        
         return {
           name: medicine.name,
           dosage: medicine.dosage,
           usageInstructions: medicine.usageInstructions,
           quantity: medicine.quantity,
           timesPerDay: medicine.timesPerDay,
-          timeSlots: timeSlotsAsDateObjects,
+          timeShifts: medicine.timeShifts,
           note: medicine.note,
-          reason: medicine.reason,
-          slotStatus: slotStatus
+          reason: medicine.reason
         };
       });
 
@@ -729,26 +777,16 @@ export default function CreateMedicineScreen() {
                           3: ["08:00", "12:00", "20:00"],
                         };
                         
-                        const currentMedicine = getCurrentMedicine();
-                        let newTimeSlots = [...currentMedicine.timeSlots];
-                        
-                        // Chỉ cập nhật timeSlots khi cần thiết
-                        if (times > currentMedicine.timeSlots.length) {
-                          // Thêm thời gian mặc định cho các slot mới
-                          const defaultSlots = defaultTimes[times as keyof typeof defaultTimes];
-                          newTimeSlots = [
-                            ...currentMedicine.timeSlots,
-                            ...defaultSlots.slice(currentMedicine.timeSlots.length)
-                          ];
-                        } else if (times < currentMedicine.timeSlots.length) {
-                          // Giữ lại các thời gian đã tùy chỉnh, chỉ cắt bớt
-                          newTimeSlots = currentMedicine.timeSlots.slice(0, times);
-                        }
-                        // Nếu times === currentMedicine.timeSlots.length thì giữ nguyên
+                        // Cập nhật timeShifts dựa trên số lần uống (bỏ qua validation thời gian)
+                        const defaultShifts = {
+                          1: ['morning'],
+                          2: ['morning', 'evening'],
+                          3: ['morning', 'noon', 'evening']
+                        };
                         
                         updateCurrentMedicine({
                           timesPerDay: times,
-                          timeSlots: newTimeSlots,
+                          timeShifts: defaultShifts[times as keyof typeof defaultShifts] || ['morning']
                         });
                       }}
                     >
@@ -768,6 +806,33 @@ export default function CreateMedicineScreen() {
 
 
             </View>
+{/* 
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Số ngày sử dụng</Text>
+              <TextInput
+                style={[styles.input]}
+                value={daysOfUse.toString()}
+                onChangeText={(text) => {
+                  const days = parseInt(text) || 1;
+                  setDaysOfUse(days);
+                  
+                  // Tự động tính toán lại số lượng khi thay đổi số ngày
+                  if (currentMedicine.dosage && currentMedicine.timesPerDay > 0) {
+                    const smartQuantity = calculateSmartQuantity(
+                      currentMedicine.dosage,
+                      currentMedicine.timesPerDay,
+                      days
+                    );
+                    if (smartQuantity > 0) {
+                      updateCurrentMedicine({ quantity: smartQuantity });
+                    }
+                  }
+                }}
+                keyboardType="numeric"
+                placeholder="7"
+              />
+              <Text style={styles.helperText}>Số ngày dự kiến sử dụng thuốc</Text>
+            </View> */}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Tổng số lượng cần cấp</Text>
@@ -782,83 +847,77 @@ export default function CreateMedicineScreen() {
                 placeholder="15"
               />
               
-              <View style={styles.smartCalculationContainer}>
-                <TouchableOpacity 
-                  style={styles.smartCalculateButton}
-                  onPress={() => {
-                    const smartQuantity = calculateSmartQuantity(
-                      currentMedicine.dosage,
-                      currentMedicine.timesPerDay,
-                      daysOfUse
-                    );
-                    updateCurrentMedicine({ quantity: smartQuantity });
-                  }}
-                >
-                  <Text style={styles.smartCalculateText}>Tính toán thông minh</Text>
-                </TouchableOpacity>
-              </View>
-              
-              {(() => {
-                const parsed = parseDosage(currentMedicine.dosage);
-                if (parsed && parsed.amount > 0) {
-                  const dailyDosage = parsed.amount * currentMedicine.timesPerDay;
-                  const calculatedDays = Math.ceil(currentMedicine.quantity / dailyDosage);
-                  
-                  return (
-                    <View style={styles.calculationInfo}>
-                      <Text style={styles.calculationText}>
-                        📊 Tính toán: {currentMedicine.quantity} {parsed.unit} ÷ ({parsed.amount} {parsed.unit} × {currentMedicine.timesPerDay} lần/ngày) = {calculatedDays} ngày
-                      </Text>
-                      {parsed.type === 'liquid' && (
-                        <Text style={styles.liquidWarning}>
-                          💧 Thuốc lỏng: Nên chuẩn bị thêm 10-20% để đảm bảo đủ dùng
-                        </Text>
-                      )}
-                    </View>
-                  );
-                }
-                return (
-                  <Text style={styles.helperText}>
-                    Nhập liều lượng để tự động tính toán số ngày sử dụng
-                  </Text>
-                );
-              })()} 
+ 
             </View>
           </View>
 
-          {/* Time Slots */}
+          {/* Time Shifts */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Thời gian uống thuốc</Text>
-              {currentMedicine.timeSlots.length < 6 && (
-                <TouchableOpacity
-                  onPress={addTimeSlot}
-                  style={styles.addButton}
-                >
-                  <Ionicons name="add" size={20} color="#4CAF50" />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {currentMedicine.timeSlots.map((time, index) => (
-              <View key={index} style={styles.timeSlotRow}>
-                <Text style={styles.timeLabel}>Lần {index + 1}:</Text>
-                <TextInput
-                  style={styles.timeInput}
-                  value={time}
-                  onChangeText={(text) => handleTimeSlotChange(index, text)}
-                  placeholder="HH:MM"
-                />
-                {currentMedicine.timeSlots.length > 1 && (
+            <Text style={styles.sectionTitle}>Ca uống thuốc</Text>
+            <Text style={styles.helperText}>Chọn các ca trong ngày cần uống thuốc</Text>
+            
+            <View style={styles.timeShiftsContainer}>
+              {['morning', 'noon', 'evening'].map((shift) => {
+                const isSelected = currentMedicine.timeShifts.includes(shift);
+                return (
                   <TouchableOpacity
-                    onPress={() => removeTimeSlot(index)}
-                    style={styles.removeButton}
+                    key={shift}
+                    style={[
+                      styles.shiftButton, 
+                      isSelected && styles.shiftButtonSelected
+                    ]}
+                    onPress={() => handleTimeShiftChange(shift, !isSelected)}
                   >
-                    <Ionicons name="remove" size={20} color="#ff4444" />
+                    <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+                      {isSelected && (
+                        <Ionicons name="checkmark" size={16} color="#fff" />
+                      )}
+                    </View>
+                    <View style={styles.shiftInfo}>
+                      <Text style={[
+                        styles.shiftText, 
+                        isSelected && styles.shiftTextSelected
+                      ]}>
+                        {getShiftDisplayName(shift)}
+                      </Text>
+                      <Text style={styles.shiftTimeText}>
+                        {getShiftTimeRange(shift)}
+                      </Text>
+                    </View>
+
                   </TouchableOpacity>
-                )}
-              </View>
-            ))}
+                );
+              })}
+            </View>
+            
+            <Text style={styles.selectedShiftsText}>
+              Đã chọn: {currentMedicine.timeShifts.map(shift => getShiftDisplayName(shift)).join(', ')}
+            </Text>
+            
+            {/* Validation Status */}
+            <View style={[
+              styles.validationStatus,
+              currentMedicine.timeShifts.length === currentMedicine.timesPerDay 
+                ? styles.validationSuccess 
+                : styles.validationError
+            ]}>
+              <Ionicons 
+                name={currentMedicine.timeShifts.length === currentMedicine.timesPerDay ? "checkmark-circle" : "warning"} 
+                size={16} 
+                color={currentMedicine.timeShifts.length === currentMedicine.timesPerDay ? "#4CAF50" : "#ff9800"} 
+              />
+              <Text style={[
+                styles.validationText,
+                currentMedicine.timeShifts.length === currentMedicine.timesPerDay 
+                  ? styles.validationTextSuccess 
+                  : styles.validationTextError
+              ]}>
+                {currentMedicine.timeShifts.length === currentMedicine.timesPerDay 
+                  ? `Đã chọn đủ ${currentMedicine.timesPerDay} ca theo yêu cầu` 
+                  : `Cần chọn ${currentMedicine.timesPerDay} ca, hiện tại: ${currentMedicine.timeShifts.length} ca`
+                }
+              </Text>
+            </View>
           </View>
 
 
@@ -1421,4 +1480,118 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
+  autoCalculationNote: {
+    fontSize: 12,
+    color: "#4CAF50",
+    fontStyle: "italic",
+    marginTop: 4,
+    backgroundColor: "#f0fff4",
+    padding: 8,
+    borderRadius: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: "#4CAF50",
+  },
+  // Time Shifts styles
+  timeShiftsContainer: {
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  shiftButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    backgroundColor: "#fff",
+  },
+  shiftButtonSelected: {
+    backgroundColor: "#f0fff4",
+    borderColor: "#4CAF50",
+  },
+  shiftButtonDisabled: {
+    backgroundColor: "#f5f5f5",
+    borderColor: "#e0e0e0",
+    opacity: 0.6,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: "#ddd",
+    marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  checkboxSelected: {
+    backgroundColor: "#4CAF50",
+    borderColor: "#4CAF50",
+  },
+  checkboxDisabled: {
+    backgroundColor: "#f0f0f0",
+    borderColor: "#ccc",
+  },
+  shiftInfo: {
+    flex: 1,
+  },
+  shiftText: {
+    fontSize: 16,
+    color: "#333",
+    fontWeight: "500",
+  },
+  shiftTextSelected: {
+    color: "#4CAF50",
+    fontWeight: "600",
+  },
+  shiftTextDisabled: {
+    color: "#999",
+  },
+  shiftTimeText: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
+  shiftTimeTextDisabled: {
+    color: "#ccc",
+  },
+  selectedShiftsText: {
+     fontSize: 12,
+     color: "#666",
+     fontStyle: "italic",
+     marginTop: 8,
+   },
+   // Validation Status styles
+   validationStatus: {
+     flexDirection: "row",
+     alignItems: "center",
+     paddingVertical: 8,
+     paddingHorizontal: 12,
+     borderRadius: 6,
+     marginTop: 8,
+   },
+   validationSuccess: {
+     backgroundColor: "#f0fff4",
+     borderWidth: 1,
+     borderColor: "#4CAF50",
+   },
+   validationError: {
+     backgroundColor: "#fff8e1",
+     borderWidth: 1,
+     borderColor: "#ff9800",
+   },
+   validationText: {
+     fontSize: 12,
+     marginLeft: 6,
+     flex: 1,
+   },
+   validationTextSuccess: {
+     color: "#4CAF50",
+   },
+   validationTextError: {
+     color: "#ff9800",
+   },
 });

@@ -1,6 +1,11 @@
-import { api, getCurrentUserId } from "@/lib/api";
+import { api, getCurrentUserId, searchVaccineTypes } from "@/lib/api";
 
-import { CreateHealthRecordRequest } from "@/lib/types";
+import {
+  CreateHealthRecordRequest,
+  VaccinationRecord,
+  VaccineType,
+  VaccineTypeSearchParams,
+} from "@/lib/types";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -26,6 +31,8 @@ interface StudentData {
   studentIdCode: string;
   class: string;
   avatar: string;
+  gender?: string;
+  birthday?: string;
 }
 
 export default function CreateHealthRecordScreen() {
@@ -39,6 +46,9 @@ export default function CreateHealthRecordScreen() {
   );
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [showSchoolYearModal, setShowSchoolYearModal] = useState(false);
+  const [vaccineTypes, setVaccineTypes] = useState<VaccineType[]>([]);
+  const [selectedVaccineTypes, setSelectedVaccineTypes] = useState<VaccineType[]>([]);
+  const [showVaccineTypeModal, setShowVaccineTypeModal] = useState(false);
 
   // Available school years
   const schoolYears = [
@@ -57,19 +67,21 @@ export default function CreateHealthRecordScreen() {
     hearing: "",
     vaccinationHistory: [],
     schoolYear: "2025-2026",
-    height: "",
-    weight: "",
+    height: 0,
+    weight: 0,
   });
 
   // Form state for input handling
   const [chronicDiseasesInput, setChronicDiseasesInput] = useState("");
   const [allergiesInput, setAllergiesInput] = useState("");
   const [pastTreatmentsInput, setPastTreatmentsInput] = useState("");
-  const [vaccinationHistoryInput, setVaccinationHistoryInput] = useState("");
+  const [heightInput, setHeightInput] = useState("");
+  const [weightInput, setWeightInput] = useState("");
 
-  // Load students on component mount
+  // Load students and vaccine types on component mount
   useEffect(() => {
     loadStudents();
+    loadVaccineTypes();
   }, []);
 
   // Auto-set school year when student is selected
@@ -158,6 +170,33 @@ export default function CreateHealthRecordScreen() {
     }
   };
 
+  // Load vaccine types
+  const loadVaccineTypes = async () => {
+    try {
+      console.log('🔍 Loading vaccine types...');
+      const params: VaccineTypeSearchParams = {
+        pageNum: 1,
+        pageSize: 100,
+      };
+      const response = await searchVaccineTypes(params);
+      console.log('✅ Vaccine types response:', response);
+      
+      if (response && response.pageData) {
+        setVaccineTypes(response.pageData);
+        console.log(`✅ Loaded ${response.pageData.length} vaccine types`);
+      } else {
+        console.warn('⚠️ No vaccine types data in response');
+        setVaccineTypes([]);
+      }
+    } catch (error: any) {
+      console.error("❌ Load vaccine types error:", error);
+      setVaccineTypes([]);
+      // Show more detailed error message
+      const errorMessage = error?.message || error?.toString() || "Không thể tải danh sách loại vaccine";
+      Alert.alert("Lỗi", `Load vaccine types error: ${errorMessage}`);
+    }
+  };
+
   const determineNextSchoolYear = async (studentId: string) => {
     try {
       console.log("📅 Determining next school year for student:", studentId);
@@ -223,8 +262,8 @@ export default function CreateHealthRecordScreen() {
 
   const validateHealthData = (): string | null => {
     // Validate height
-    if (formData.height.trim()) {
-      const height = parseFloat(formData.height);
+    if (heightInput.trim()) {
+      const height = parseFloat(heightInput);
       if (isNaN(height) || height <= 0) {
         return "Chiều cao phải là số dương";
       }
@@ -234,8 +273,8 @@ export default function CreateHealthRecordScreen() {
     }
 
     // Validate weight
-    if (formData.weight.trim()) {
-      const weight = parseFloat(formData.weight);
+    if (weightInput.trim()) {
+      const weight = parseFloat(weightInput);
       if (isNaN(weight) || weight <= 0) {
         return "Cân nặng phải là số dương";
       }
@@ -279,6 +318,12 @@ export default function CreateHealthRecordScreen() {
       const finalData = {
         ...formData,
         studentId: selectedStudent.id,
+        studentName: selectedStudent.name,
+        studentCode: selectedStudent.studentCode,
+        gender: selectedStudent.gender || '',
+        birthday: selectedStudent.birthday || '',
+        height: parseFloat(heightInput) || 0,
+        weight: parseFloat(weightInput) || 0,
         chronicDiseases: chronicDiseasesInput
           .split(",")
           .map((item) => item.trim())
@@ -291,10 +336,18 @@ export default function CreateHealthRecordScreen() {
           .split(",")
           .map((item) => item.trim())
           .filter((item) => item.length > 0),
-        vaccinationHistory: vaccinationHistoryInput
-          .split(",")
-          .map((item) => item.trim())
-          .filter((item) => item.length > 0),
+        vaccinationHistory: selectedVaccineTypes.map((vaccineType): VaccinationRecord => ({
+          vaccineTypeId: vaccineType._id,
+          injectedAt: new Date().toISOString(),
+          provider: undefined,
+          note: undefined,
+          // Keep deprecated fields for backward compatibility
+          vaccineName: vaccineType.name,
+          vaccineType: vaccineType,
+          dateAdministered: undefined,
+          batchNumber: undefined,
+          notes: undefined,
+        })),
       };
 
       console.log("📝 Creating health record:", finalData);
@@ -537,14 +590,14 @@ export default function CreateHealthRecordScreen() {
               )}
               {renderInput(
                 "Chiều cao (cm)",
-                formData.height,
+                heightInput,
                 (text) => {
                   // Only allow positive numbers and decimal point
                   const numericText = text.replace(/[^0-9.]/g, '');
                   // Prevent multiple decimal points
                   const parts = numericText.split('.');
                   const validText = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : numericText;
-                  setFormData({ ...formData, height: validText });
+                  setHeightInput(validText);
                 },
                 "Nhập chiều cao từ 110-160cm",
                 false,
@@ -552,14 +605,14 @@ export default function CreateHealthRecordScreen() {
               )}
               {renderInput(
                 "Cân nặng (kg)",
-                formData.weight,
+                weightInput,
                 (text) => {
                   // Only allow positive numbers and decimal point
                   const numericText = text.replace(/[^0-9.]/g, '');
                   // Prevent multiple decimal points
                   const parts = numericText.split('.');
                   const validText = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : numericText;
-                  setFormData({ ...formData, weight: validText });
+                  setWeightInput(validText);
                 },
                 "Nhập cân nặng từ 20-70kg",
                 false,
@@ -603,13 +656,43 @@ export default function CreateHealthRecordScreen() {
           renderFormSection(
             "Lịch sử tiêm chủng",
             "syringe",
-            renderArrayInput(
-              "Các loại vaccine đã tiêm",
-              vaccinationHistoryInput,
-              setVaccinationHistoryInput,
-              "Ví dụ: BCG, Sởi, Viêm gan B...",
-              "Phân cách bằng dấu phẩy cho từng loại vaccine"
-            )
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Lịch sử tiêm chủng</Text>
+              <TouchableOpacity
+                style={styles.selectorButton}
+                onPress={() => setShowVaccineTypeModal(true)}
+              >
+                <Text style={styles.selectorButtonText}>
+                  {selectedVaccineTypes.length > 0
+                    ? `Đã chọn ${selectedVaccineTypes.length} loại vaccine`
+                    : "Chọn loại vaccine"}
+                </Text>
+                <FontAwesome5 name="chevron-down" size={16} color="#8c8c8c" />
+              </TouchableOpacity>
+              {selectedVaccineTypes.length > 0 && (
+                <View style={styles.selectedVaccinesContainer}>
+                  {selectedVaccineTypes.map((vaccine, index) => (
+                    <View key={vaccine._id} style={styles.selectedVaccineItem}>
+                      <Text style={styles.selectedVaccineText}>
+                        {vaccine.code}: {vaccine.name}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedVaccineTypes(prev => 
+                            prev.filter(v => v._id !== vaccine._id)
+                          );
+                        }}
+                      >
+                        <FontAwesome5 name="times" size={14} color="#ff4d4f" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+              <Text style={styles.helperText}>
+                Chọn các loại vaccine đã tiêm từ danh sách có sẵn
+              </Text>
+            </View>
           )}
 
         {/* Save Button */}
@@ -694,6 +777,80 @@ export default function CreateHealthRecordScreen() {
               style={styles.schoolYearList}
               showsVerticalScrollIndicator={false}
             />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Vaccine Type Selection Modal */}
+      <Modal
+        visible={showVaccineTypeModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowVaccineTypeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Chọn loại vaccine</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowVaccineTypeModal(false)}
+              >
+                <MaterialIcons name="close" size={24} color="#8c8c8c" />
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={vaccineTypes}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.vaccineTypeItem,
+                    selectedVaccineTypes.some(v => v._id === item._id) && styles.selectedVaccineTypeItem,
+                  ]}
+                  onPress={() => {
+                    const isSelected = selectedVaccineTypes.some(v => v._id === item._id);
+                    if (isSelected) {
+                      setSelectedVaccineTypes(prev => prev.filter(v => v._id !== item._id));
+                    } else {
+                      setSelectedVaccineTypes(prev => [...prev, item]);
+                    }
+                  }}
+                >
+                  <View style={styles.vaccineTypeInfo}>
+                    <Text style={styles.vaccineTypeName}>{item.name}</Text>
+                    <Text style={styles.vaccineTypeCode}>Mã: {item.code}</Text>
+                    {item.description && (
+                      <Text style={styles.vaccineTypeDescription}>{item.description}</Text>
+                    )}
+                  </View>
+                  {selectedVaccineTypes.some(v => v._id === item._id) && (
+                    <FontAwesome5 name="check-circle" size={20} color="#52c41a" />
+                  )}
+                </TouchableOpacity>
+              )}
+              keyExtractor={(item) => item._id}
+              style={styles.vaccineTypeList}
+              showsVerticalScrollIndicator={false}
+            />
+            
+            {/* Confirm Button */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={() => setShowVaccineTypeModal(false)}
+              >
+                <LinearGradient
+                  colors={["#1890ff", "#40a9ff"]}
+                  style={styles.confirmButtonGradient}
+                >
+                  <FontAwesome5 name="check" size={16} color="#fff" />
+                  <Text style={styles.confirmButtonText}>
+                    Xác nhận ({selectedVaccineTypes.length} đã chọn)
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -971,5 +1128,119 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 40,
+  },
+  selectorButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#d9d9d9",
+  },
+  selectorButtonText: {
+    fontSize: 16,
+    color: "#262626",
+  },
+  selectedVaccinesContainer: {
+    marginTop: 12,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  selectedVaccineItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#e6f7ff",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#91d5ff",
+  },
+  selectedVaccineText: {
+    fontSize: 12,
+    color: "#1890ff",
+    marginRight: 8,
+  },
+  vaccineTypeList: {
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+    maxHeight: 400,
+  },
+  vaccineTypeItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginVertical: 6,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  selectedVaccineTypeItem: {
+    backgroundColor: "#e6f7ff",
+    borderColor: "#40a9ff",
+    borderWidth: 2,
+    shadowColor: "#1890ff",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  vaccineTypeInfo: {
+    flex: 1,
+  },
+  vaccineTypeName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#262626",
+    marginBottom: 4,
+    lineHeight: 22,
+  },
+  vaccineTypeCode: {
+    fontSize: 13,
+    color: "#1890ff",
+    marginBottom: 4,
+    fontWeight: "500",
+  },
+  vaccineTypeDescription: {
+    fontSize: 12,
+    color: "#8c8c8c",
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  modalFooter: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    backgroundColor: "#fff",
+  },
+  confirmButton: {
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  confirmButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+    marginLeft: 8,
   },
 });

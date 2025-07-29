@@ -273,19 +273,68 @@ interface MecicalCheckEvents {
   eventName: string
 }
 // Health Records interfaces
+// Vaccine Type interface
+export interface VaccineType {
+  _id?: string
+  code: string
+  name: string
+  description: string
+}
+
+// Vaccine Type API interfaces
+export interface VaccineTypeSearchParams {
+  query?: string
+  pageNum: number
+  pageSize: number
+}
+
+export interface VaccineTypeSearchResponse {
+  pageData: VaccineType[]
+  pageInfo: {
+    pageNum: number
+    pageSize: number
+    totalItems: number
+    totalPages: number
+  }
+}
+
+export interface CreateVaccineTypeRequest {
+  code: string
+  name: string
+  description: string
+}
+
+export interface CreateVaccineTypeResponse {
+  success: boolean
+  data?: VaccineType
+  message?: string
+}
+
+// Vaccination History interface
+export interface VaccinationRecord {
+  vaccineTypeId: string
+  injectedAt: string
+  provider?: string
+  note?: string
+  // Deprecated fields for backward compatibility
+}
+
 export interface HealthRecord {
   _id: string
   studentId: string
   studentName: string
+  studentCode: string
+  gender: string
+  birthday: string
   chronicDiseases: string[]
   allergies: string[]
   pastTreatments: string[]
   vision: string
   hearing: string
-  vaccinationHistory: string[]
+  height: number
+  weight: number
+  vaccinationHistory: VaccinationRecord[]
   schoolYear: string
-  height: string
-  weight: string
   createdAt: string
   updatedAt: string
   __v: number
@@ -317,15 +366,19 @@ export interface HealthRecordDetailResponse {
 
 export interface CreateHealthRecordRequest {
     studentId: string
+    studentName?: string
+    studentCode?: string
+    gender?: string
+    birthday?: string
     chronicDiseases: string[]
     allergies: string[]
     pastTreatments: string[]
     vision: string
     hearing: string
-    vaccinationHistory: string[]
+    height: number
+    weight: number
+    vaccinationHistory: VaccinationRecord[]
     schoolYear: string
-    height: string
-    weight: string
 }
 
 export interface CreateHealthRecordResponse {
@@ -334,15 +387,18 @@ export interface CreateHealthRecordResponse {
         _id: string
         studentId: string
         studentName: string
+        studentCode: string
+        gender: string
+        birthday: string
         chronicDiseases: string[]
         allergies: string[]
         pastTreatments: string[]
         vision: string
         hearing: string
-        vaccinationHistory: string[]
+        height: number
+        weight: number
+        vaccinationHistory: VaccinationRecord[]
         schoolYear: string
-        height: string
-        weight: string
         createdAt: string
         updatedAt: string
         __v: number

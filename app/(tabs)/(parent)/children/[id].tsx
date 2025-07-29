@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { useAuth, checkUserPermission, showPermissionDeniedAlert } from "@/lib/auth";
 import { HealthRecord } from "@/lib/types";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -59,6 +60,7 @@ interface QuickAction {
 export default function StudentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const [student, setStudent] = useState<Student | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -530,6 +532,12 @@ export default function StudentDetail() {
 
   const handleUpdateProfile = async () => {
     try {
+      // Check user permission first
+      if (!checkUserPermission(user)) {
+        showPermissionDeniedAlert();
+        return;
+      }
+
       if (!editFullName.trim()) {
         Alert.alert("Lỗi", "Vui lòng nhập họ và tên");
         return;

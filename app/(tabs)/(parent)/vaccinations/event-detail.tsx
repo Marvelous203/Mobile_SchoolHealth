@@ -1,6 +1,7 @@
 "use client"
 
 import { api, getCurrentUserId } from "@/lib/api"
+import { useAuth, checkUserPermission, showPermissionDeniedAlert } from "@/lib/auth"
 import { Ionicons } from "@expo/vector-icons"
 import { LinearGradient } from "expo-linear-gradient"
 import { router, useLocalSearchParams } from "expo-router"
@@ -61,6 +62,7 @@ interface VaccineRegistration {
 
 export default function VaccineEventDetailScreen() {
   const { id, studentId, studentName } = useLocalSearchParams()
+  const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [eventData, setEventData] = useState<VaccineEvent | null>(null)
@@ -197,6 +199,12 @@ export default function VaccineEventDetailScreen() {
   }
 
   const handleSubmitRegistration = async () => {
+    // Check user permission first
+    if (!checkUserPermission(user)) {
+      showPermissionDeniedAlert()
+      return
+    }
+
     // Validate all required parameters
     if (!currentUserId || !studentId || !eventData || !id) {
       Alert.alert("Lỗi", "Thiếu thông tin cần thiết để đăng ký")

@@ -1,4 +1,5 @@
 import { api, getCurrentUserId } from "@/lib/api";
+import { useAuth, checkUserPermission, showPermissionDeniedAlert } from "@/lib/auth";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -34,6 +35,7 @@ interface HealthCheckEvent {
 
 export default function HealthCheckDetailScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { eventId, studentId, studentName } = useLocalSearchParams<{ 
     eventId: string;
     studentId: string;
@@ -170,6 +172,12 @@ export default function HealthCheckDetailScreen() {
   };
 
   const handleSubmitRegistration = async () => {
+    // Check user permission first
+    if (!checkUserPermission(user)) {
+      showPermissionDeniedAlert();
+      return;
+    }
+
     if (!currentUserId || !eventId || !studentId || !event) {
       Alert.alert("Lỗi", "Thiếu thông tin cần thiết để đăng ký");
       return;

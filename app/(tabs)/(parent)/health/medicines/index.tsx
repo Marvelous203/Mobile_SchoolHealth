@@ -121,11 +121,12 @@ export default function MedicinesScreen() {
       console.log('📚 Fetching student info for ID:', studentId)
       const response = await api.getStudentById(studentId)
       
-      if (response && response.data) {
+      if (response && response.data && response.data._id) {
         const studentInfo = {
           _id: response.data._id,
-          fullName: response.data.fullName,
-          studentCode: response.data.studentCode,
+          fullName: response.data.fullName || '',
+          studentCode: response.data.studentCode || '',
+          studentIdCode: response.data.studentIdCode || response.data.studentCode || '',
           classInfo: response.data.classInfo ? {
             _id: response.data.classInfo._id,
             name: response.data.classInfo.name
@@ -191,7 +192,7 @@ export default function MedicinesScreen() {
   
       console.log('💊 Medicine submissions response:', response)
   
-      if (response && response.pageData) {
+      if (response && response.pageData && Array.isArray(response.pageData)) {
         // Fetch thông tin học sinh cho từng đơn thuốc
         const submissionsWithStudentInfo = await Promise.all(
           response.pageData.map(async (submission: MedicineSubmission) => {
@@ -209,7 +210,7 @@ export default function MedicinesScreen() {
           setMedicineSubmissions(prev => [...prev, ...submissionsWithStudentInfo])
         }
         
-        setHasMore(page < response.pageInfo.totalPages)
+        setHasMore(response.pageInfo && response.pageInfo.totalPages ? page < response.pageInfo.totalPages : false)
       }
     } catch (error: any) {
       console.error('Error loading medicine submissions:', error)
@@ -261,6 +262,12 @@ export default function MedicinesScreen() {
   }
   const handleReuseMedicine = async (item: MedicineSubmission) => {
     try {
+      // Kiểm tra medicines có tồn tại và là array
+      if (!item.medicines || !Array.isArray(item.medicines)) {
+        Alert.alert('Lỗi', 'Dữ liệu đơn thuốc không hợp lệ')
+        return
+      }
+      
       // Lưu dữ liệu vào AsyncStorage với timeSlots đã được format
       const reuseData = {
         medicines: item.medicines.map(medicine => ({
@@ -270,7 +277,7 @@ export default function MedicinesScreen() {
           quantity: medicine.quantity,
           timesPerDay: medicine.timesPerDay,
           // Chuyển đổi timeSlots về format HH:MM
-          timeSlots: medicine.timeSlots.map(timeSlot => {
+          timeSlots: (medicine.timeSlots && Array.isArray(medicine.timeSlots)) ? medicine.timeSlots.map(timeSlot => {
             try {
               const date = new Date(timeSlot)
               if (isNaN(date.getTime())) {
@@ -284,7 +291,7 @@ export default function MedicinesScreen() {
             } catch {
               return timeSlot
             }
-          }),
+          }) : [],
           note: medicine.note,
           reason: medicine.reason
         })),
@@ -315,8 +322,8 @@ export default function MedicinesScreen() {
       <View style={styles.medicineHeader}>
         <View style={styles.medicineInfo}>
           <Text style={styles.medicineTitle}>
-            {item.medicines.length} loại thuốc
-          </Text>
+          {item.medicines && Array.isArray(item.medicines) ? item.medicines.length : 0} loại thuốc
+        </Text>
           {/* Hiển thị thông tin học sinh */}
           {item.studentInfo && (
             <View style={styles.studentInfo}>
@@ -339,12 +346,12 @@ export default function MedicinesScreen() {
       </View>
       
       <View style={styles.medicineDetails}>
-        {item.medicines.slice(0, 2).map((medicine, index) => (
+        {item.medicines && Array.isArray(item.medicines) && item.medicines.slice(0, 2).map((medicine, index) => (
           <Text key={index} style={styles.medicineDetailText}>
             • {medicine.name} - {medicine.dosage}
           </Text>
         ))}
-        {item.medicines.length > 2 && (
+        {item.medicines && Array.isArray(item.medicines) && item.medicines.length > 2 && (
           <Text style={styles.moreText}>
             +{item.medicines.length - 2} thuốc khác
           </Text>
@@ -443,7 +450,7 @@ export default function MedicinesScreen() {
             </View>
           ) : (
             <View>
-              {medicineSubmissions.map(renderMedicineItem)}
+              {medicineSubmissions && Array.isArray(medicineSubmissions) && medicineSubmissions.map(renderMedicineItem)}
               {loading && (
                 <View style={styles.loadMoreContainer}>
                   <ActivityIndicator size="small" color="#4CAF50" />
@@ -503,8 +510,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     borderRadius: 8,
   },
   createButtonText: {

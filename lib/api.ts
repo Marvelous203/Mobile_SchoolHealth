@@ -9,9 +9,16 @@ import {
     CreateHealthRecordRequest,
     CreateHealthRecordResponse,
     HealthCheckResult,
+    HealthRecord,
     HealthRecordDetailResponse,
     HealthRecordSearchParams,
     HealthRecordSearchResponse,
+    VaccinationRecord,
+    VaccineType,
+    VaccineTypeSearchParams,
+    VaccineTypeSearchResponse,
+    CreateVaccineTypeRequest,
+    CreateVaccineTypeResponse,
     MedicalEvent,
     MedicalEventSearchParams,
     MedicalEventSearchResponse,
@@ -183,6 +190,7 @@ export interface UserProfile {
     isDeleted?: boolean
     studentParents?: StudentParent[]
     studentIds?: string[]
+    fullPermission?: boolean
     createdAt?: string
     updatedAt?: string
 }
@@ -200,7 +208,8 @@ export interface MedicineItem {
   usageInstructions: string
   quantity: number
   timesPerDay: number
-  timeSlots: string[] // Đảm bảo là array
+  timeSlots?: string[] // Giữ lại để tương thích ngược
+  timeShifts: string[] // Mới: ["morning", "noon", "evening"]
   note: string
   reason: string
   // Thêm slotStatus nếu backend yêu cầu
@@ -874,6 +883,304 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
             return response
         } catch (error) {
             console.error('❌ Get health record detail error:', error)
+            throw error
+        }
+    },
+
+    // Clone health record for new school year (Client-side implementation)
+    cloneHealthRecord: async (recordId: string, newSchoolYear: string): Promise<CreateHealthRecordResponse> => {
+        try {
+            console.log('🔄 Cloning health record:', recordId, 'for year:', newSchoolYear)
+            
+            // Get the original record
+            const originalRecord = await api.getHealthRecordById(recordId)
+            if (!originalRecord.success || !originalRecord.data) {
+                throw new Error('Không thể tải hồ sơ gốc')
+            }
+            
+            // Create new record with same data but new school year
+            const cloneData: CreateHealthRecordRequest = {
+                studentId: originalRecord.data.studentId,
+                studentName: originalRecord.data.studentName,
+                studentCode: originalRecord.data.studentCode,
+                gender: originalRecord.data.gender,
+                birthday: originalRecord.data.birthday,
+                chronicDiseases: [...originalRecord.data.chronicDiseases],
+                allergies: [...originalRecord.data.allergies],
+                pastTreatments: [...originalRecord.data.pastTreatments],
+                vision: originalRecord.data.vision,
+                hearing: originalRecord.data.hearing,
+                height: originalRecord.data.height,
+                weight: originalRecord.data.weight,
+                vaccinationHistory: originalRecord.data.vaccinationHistory.map(vaccine => {
+                    let vaccineName = '';
+                    
+                    if (typeof vaccine === 'string') {
+                        vaccineName = vaccine;
+                    } else if (typeof vaccine === 'object') {
+                        if (vaccine.vaccineName) {
+                            vaccineName = vaccine.vaccineName;
+                        } else if (vaccine._id && Object.keys(vaccine).some(key => !isNaN(Number(key)))) {
+                            // Reconstruct string from indexed object
+                            const keys = Object.keys(vaccine).filter(key => !isNaN(Number(key))).sort((a, b) => Number(a) - Number(b));
+                            vaccineName = keys.map(key => vaccine[key]).join('');
+                        }
+                    }
+                    
+                    return {
+                        vaccineTypeId: vaccine.vaccineTypeId || '',
+                        injectedAt: vaccine.injectedAt || vaccine.dateAdministered || '',
+                        provider: vaccine.provider,
+                        note: vaccine.note || vaccine.notes,
+                        // Keep deprecated fields for backward compatibility
+                        vaccineName: vaccineName,
+                        dateAdministered: vaccine.dateAdministered,
+                        batchNumber: vaccine.batchNumber,
+                        notes: vaccine.notes
+                    };
+                }),
+                schoolYear: newSchoolYear
+            }
+            
+            // Create the cloned record
+            const response = await api.createHealthRecord(cloneData)
+            console.log('✅ Health record cloned successfully:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Clone health record error:', error)
+            throw error
+        }
+    },
+
+    // Export health records (Client-side implementation)
+    exportHealthRecords: async (studentIds: string[], format: 'json' | 'excel' = 'json'): Promise<{ success: boolean; data?: any; downloadUrl?: string; message?: string }> => {
+        try {
+            console.log('📤 Exporting health records for students:', studentIds, 'format:', format)
+            
+            const exportData: HealthRecord[] = []
+            
+            // Collect all health records for the students
+            for (const studentId of studentIds) {
+                const params: HealthRecordSearchParams = {
+                    pageNum: 1,
+                    pageSize: 50,
+                    studentId: studentId
+                }
+                
+                const response = await api.searchHealthRecords(params)
+                if (response.pageData && response.pageData.length > 0) {
+                    exportData.push(...response.pageData)
+                }
+            }
+            
+            if (exportData.length === 0) {
+                return {
+                    success: false,
+                    message: 'Không có dữ liệu để xuất'
+                }
+            }
+            
+            // Store export data in AsyncStorage with timestamp
+            const exportKey = `health_records_export_${Date.now()}`
+            const exportPayload = {
+                data: exportData,
+                exportDate: new Date().toISOString(),
+                format: format,
+                studentCount: studentIds.length,
+                recordCount: exportData.length
+            }
+            
+            await AsyncStorage.setItem(exportKey, JSON.stringify(exportPayload))
+            
+            console.log('✅ Health records exported successfully')
+            return {
+                success: true,
+                data: exportPayload,
+                message: `Đã xuất ${exportData.length} hồ sơ cho ${studentIds.length} học sinh`
+            }
+        } catch (error) {
+            console.error('❌ Export health records error:', error)
+            throw error
+        }
+    },
+
+    // Import health records (Client-side implementation)
+    importHealthRecords: async (importData: any, options?: { overwrite?: boolean; schoolYear?: string }): Promise<{ success: boolean; data?: any; message?: string; importedCount?: number; errors?: any[] }> => {
+        try {
+            console.log('📥 Importing health records with options:', options)
+            
+            let healthRecords: HealthRecord[] = []
+            
+            // Parse import data
+            if (typeof importData === 'string') {
+                const parsed = JSON.parse(importData)
+                healthRecords = parsed.data || parsed
+            } else if (importData.data) {
+                healthRecords = importData.data
+            } else {
+                healthRecords = importData
+            }
+            
+            if (!Array.isArray(healthRecords)) {
+                throw new Error('Dữ liệu import không hợp lệ')
+            }
+            
+            let importedCount = 0
+            const errors: any[] = []
+            
+            // Import each health record
+            for (const record of healthRecords) {
+                try {
+                    // Check if record already exists for this student and school year
+                    const existingParams: HealthRecordSearchParams = {
+                        pageNum: 1,
+                        pageSize: 10,
+                        studentId: record.studentId,
+                        schoolYear: options?.schoolYear || record.schoolYear
+                    }
+                    
+                    const existingResponse = await api.searchHealthRecords(existingParams)
+                    const hasExisting = existingResponse.pageData && existingResponse.pageData.length > 0
+                    
+                    if (hasExisting && !options?.overwrite) {
+                        errors.push({
+                            studentId: record.studentId,
+                            error: 'Hồ sơ đã tồn tại, bỏ qua do không cho phép ghi đè'
+                        })
+                        continue
+                    }
+                    
+                    // Create new health record
+                    const createData: CreateHealthRecordRequest = {
+                        studentId: record.studentId,
+                        studentName: record.studentName,
+                        studentCode: record.studentCode,
+                        gender: record.gender,
+                        birthday: record.birthday,
+                        chronicDiseases: record.chronicDiseases || [],
+                        allergies: record.allergies || [],
+                        pastTreatments: record.pastTreatments || [],
+                        vision: record.vision || '',
+                        hearing: record.hearing || '',
+                        height: typeof record.height === 'number' ? record.height : parseFloat(record.height) || 0,
+                        weight: typeof record.weight === 'number' ? record.weight : parseFloat(record.weight) || 0,
+                        vaccinationHistory: (record.vaccinationHistory || []).map((vaccine: any) => {
+                            let vaccineName = '';
+                            
+                            if (typeof vaccine === 'string') {
+                                vaccineName = vaccine;
+                            } else if (typeof vaccine === 'object') {
+                                if (vaccine.vaccineName) {
+                                    vaccineName = vaccine.vaccineName;
+                                } else if (vaccine._id && Object.keys(vaccine).some(key => !isNaN(Number(key)))) {
+                                    // Reconstruct string from indexed object
+                                    const keys = Object.keys(vaccine).filter(key => !isNaN(Number(key))).sort((a, b) => Number(a) - Number(b));
+                                    vaccineName = keys.map(key => vaccine[key]).join('');
+                                }
+                            }
+                            
+                            return {
+                                vaccineTypeId: vaccine.vaccineTypeId || '',
+                                injectedAt: vaccine.injectedAt || vaccine.dateAdministered || '',
+                                provider: vaccine.provider,
+                                note: vaccine.note || vaccine.notes,
+                                // Keep deprecated fields for backward compatibility
+                                vaccineName: vaccineName,
+                                dateAdministered: vaccine.dateAdministered,
+                                batchNumber: vaccine.batchNumber,
+                                notes: vaccine.notes
+                            };
+                        }),
+                        schoolYear: options?.schoolYear || record.schoolYear
+                    }
+                    
+                    await api.createHealthRecord(createData)
+                    importedCount++
+                } catch (recordError) {
+                    console.error('Error importing record for student:', record.studentId, recordError)
+                    errors.push({
+                        studentId: record.studentId,
+                        error: recordError instanceof Error ? recordError.message : 'Lỗi không xác định'
+                    })
+                }
+            }
+            
+            console.log('✅ Health records imported successfully:', importedCount)
+            return {
+                success: true,
+                message: `Đã import thành công ${importedCount}/${healthRecords.length} hồ sơ`,
+                importedCount,
+                errors
+            }
+        } catch (error) {
+            console.error('❌ Import health records error:', error)
+            throw error
+        }
+    },
+
+    // Get export history (Client-side implementation)
+    getExportHistory: async (): Promise<{ success: boolean; data?: any[]; message?: string }> => {
+        try {
+            const keys = await AsyncStorage.getAllKeys()
+            const exportKeys = keys.filter(key => key.startsWith('health_records_export_'))
+            
+            const exports = []
+            for (const key of exportKeys) {
+                const data = await AsyncStorage.getItem(key)
+                if (data) {
+                    const parsed = JSON.parse(data)
+                    exports.push({
+                        id: key,
+                        ...parsed,
+                        data: undefined // Don't include full data in history
+                    })
+                }
+            }
+            
+            // Sort by export date (newest first)
+            exports.sort((a, b) => new Date(b.exportDate).getTime() - new Date(a.exportDate).getTime())
+            
+            return {
+                success: true,
+                data: exports
+            }
+        } catch (error) {
+            console.error('❌ Get export history error:', error)
+            throw error
+        }
+    },
+
+    // Get specific export data
+    getExportData: async (exportId: string): Promise<{ success: boolean; data?: any; message?: string }> => {
+        try {
+            const data = await AsyncStorage.getItem(exportId)
+            if (!data) {
+                return {
+                    success: false,
+                    message: 'Không tìm thấy dữ liệu export'
+                }
+            }
+            
+            return {
+                success: true,
+                data: JSON.parse(data)
+            }
+        } catch (error) {
+            console.error('❌ Get export data error:', error)
+            throw error
+        }
+    },
+
+    // Delete export data
+    deleteExportData: async (exportId: string): Promise<{ success: boolean; message?: string }> => {
+        try {
+            await AsyncStorage.removeItem(exportId)
+            return {
+                success: true,
+                message: 'Đã xóa dữ liệu export'
+            }
+        } catch (error) {
+            console.error('❌ Delete export data error:', error)
             throw error
         }
     },
@@ -2100,6 +2407,47 @@ export const searchMedicalCheckAppointments = async (params: MedicalCheckAppoint
 // Get medical check appointment detail by ID
 export const getMedicalCheckAppointmentDetail = async (id: string) => {
   const response = await apiCall(`/medical-check-appoinments/${id}`)
+  return response
+}
+
+// Vaccine Types API
+export const searchVaccineTypes = async (params: import('./types').VaccineTypeSearchParams): Promise<import('./types').VaccineTypeSearchResponse> => {
+  const queryParams = new URLSearchParams()
+  
+  if (params.query) {
+    queryParams.append('query', params.query)
+  }
+  
+  const url = `/vaccine-types/search/${params.pageNum}/${params.pageSize}${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+  const response = await apiCall(url)
+  return response
+}
+
+export const createVaccineType = async (data: import('./types').CreateVaccineTypeRequest): Promise<import('./types').CreateVaccineTypeResponse> => {
+  const response = await apiCall('/vaccine-types', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  return response
+}
+
+export const getVaccineTypeById = async (id: string) => {
+  const response = await apiCall(`/vaccine-types/${id}`)
+  return response
+}
+
+export const updateVaccineType = async (id: string, data: import('./types').CreateVaccineTypeRequest) => {
+  const response = await apiCall(`/vaccine-types/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+  return response
+}
+
+export const deleteVaccineType = async (id: string) => {
+  const response = await apiCall(`/vaccine-types/${id}`, {
+    method: 'DELETE',
+  })
   return response
 }
 
