@@ -646,6 +646,12 @@ export default function ParentHome() {
     )
   }
 
+  // Helper function to strip HTML tags from content
+  const stripHtml = (html: string) => {
+    if (!html) return ''
+    return html.replace(/<[^>]*>/g, '')
+  }
+
   const renderRecentBlogs = () => {
     if (recentBlogs.length === 0) return null
 
@@ -674,7 +680,7 @@ export default function ParentHome() {
                   </Text>
                   <Text style={styles.blogDate}>{new Date(blog.createdAt).toLocaleDateString("vi-VN")}</Text>
                   <Text style={styles.blogSummary} numberOfLines={3}>
-                    {blog.summary || blog.content?.substring(0, 100) + "..."}
+                    {blog.summary || (blog.content ? stripHtml(blog.content).substring(0, 100) + "..." : "Không có nội dung")}
                   </Text>
                 </View>
               </View>

@@ -31,7 +31,7 @@ export default function HealthLayout() {
       <Stack.Screen
         name="medical-events"
         options={{
-          title: "Sự kiện y tế",
+          title: "Sự cố y tế",
         }}
       />
       {/* Medicines - existing */}

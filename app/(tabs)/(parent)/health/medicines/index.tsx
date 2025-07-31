@@ -400,14 +400,14 @@ export default function MedicinesScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
+          {/* <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>Quản lý thuốc</Text>
             {selectedStudent && (
               <Text style={styles.headerSubtitle}>
                 {selectedStudent.fullName} ({selectedStudent.studentIdCode})
               </Text>
             )}
-          </View>
+          </View> */}
           <TouchableOpacity 
             style={styles.createButton}
             onPress={handleCreateMedicine}

@@ -233,20 +233,37 @@ export default function VaccineEventDetailScreen() {
 
     setIsProcessing(true)
 
-    const registrationData = {
-      parentId: currentUserId,
-      studentId: studentId as string,
-      eventId: eventData._id,
-      status: consent ? ("pending" as const) : ("rejected" as const),
-      schoolYear: eventData.schoolYear,
-      note: consent ? "Đồng ý đăng ký tiêm chủng từ ứng dụng di động" : rejectionReason,
-      cancellationReason: consent ? undefined : rejectionReason,
-    }
-
     try {
-      console.log("Submitting registration with data:", registrationData)
-      const response = await api.createVaccineRegistration(registrationData)
-      console.log("✅ Registration created:", response)
+      // Get automatically created registrations for this event
+      const registrationsResponse = await api.getVaccineRegistrationsForEvent(eventData._id)
+      console.log("✅ Retrieved registrations:", registrationsResponse)
+
+      // Find the registration for this student
+      const studentRegistration = registrationsResponse.data.find(
+        (reg: any) => reg.studentId === studentId
+      )
+
+      if (!studentRegistration) {
+        Alert.alert("Lỗi", "Không tìm thấy đăng ký cho học sinh này")
+        return
+      }
+
+      let response
+      if (consent) {
+        // Approve the registration
+        response = await api.updateVaccineRegistrationStatus(studentRegistration._id, {
+          status: "approved",
+          notes: "Đồng ý đăng ký tiêm chủng từ ứng dụng di động"
+        })
+      } else {
+        // Reject the registration
+        response = await api.updateVaccineRegistrationStatus(studentRegistration._id, {
+          status: "rejected",
+          cancellationReason: rejectionReason
+        })
+      }
+
+      console.log("✅ Registration updated:", response)
 
       setShowConsentModal(false)
       setExistingRegistration(response.data)
@@ -269,6 +286,79 @@ export default function VaccineEventDetailScreen() {
       }
 
       Alert.alert("Thông báo", errorMessage)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleUpdateRegistration = async (newStatus: "approved" | "rejected") => {
+    if (!existingRegistration) {
+      Alert.alert("Lỗi", "Không tìm thấy đăng ký")
+      return
+    }
+
+    // Check if registration is still in pending status
+    if (existingRegistration.status !== "pending") {
+      Alert.alert(
+        "Thông báo", 
+        "Đăng ký này đã được xử lý. Vui lòng tải lại trang để xem trạng thái mới nhất.",
+        [{
+          text: "Tải lại",
+          onPress: () => checkExistingRegistration()
+        }]
+      )
+      return
+    }
+
+    try {
+      setIsProcessing(true)
+      
+      let response
+      if (newStatus === "approved") {
+        response = await api.updateVaccineRegistrationStatus(existingRegistration._id, {
+          status: "approved",
+          notes: "Phụ huynh đồng ý tham gia tiêm chủng"
+        })
+      } else {
+        response = await api.updateVaccineRegistrationStatus(existingRegistration._id, {
+          status: "rejected",
+          cancellationReason: "Phụ huynh từ chối tham gia tiêm chủng"
+        })
+      }
+
+      // Check if response is successful (API returns the updated registration object directly)
+      if (response && (response._id || response.id)) {
+        // Update local state
+        setExistingRegistration({
+          ...existingRegistration,
+          status: newStatus
+        })
+        
+        Alert.alert(
+          "Thành công", 
+          newStatus === "approved" 
+            ? "Đã xác nhận đồng ý tham gia tiêm chủng" 
+            : "Đã xác nhận từ chối tham gia tiêm chủng"
+        )
+      } else {
+        throw new Error("Không thể cập nhật đăng ký")
+      }
+    } catch (error: any) {
+      console.error("Error updating registration:", error)
+      const errorMessage = error.message || "Không thể cập nhật trạng thái đăng ký"
+      
+      if (errorMessage.includes("pending")) {
+        Alert.alert(
+          "Thông báo", 
+          "Đăng ký này đã được xử lý trước đó. Vui lòng tải lại để xem trạng thái mới nhất.",
+          [{
+            text: "Tải lại",
+            onPress: () => checkExistingRegistration()
+          }]
+        )
+      } else {
+        Alert.alert("Lỗi", errorMessage)
+      }
     } finally {
       setIsProcessing(false)
     }
@@ -845,28 +935,55 @@ export default function VaccineEventDetailScreen() {
                   />
                   <Text style={styles.modernStatusIndicatorText}>
                     {existingRegistration.status === "pending"
-                      ? "Đã đăng ký - Chờ duyệt"
+                      ? "Chờ xác nhận từ phụ huynh"
                       : existingRegistration.status === "approved"
-                        ? "Đã được duyệt"
+                        ? "Đã đồng ý - Chờ duyệt"
                         : "Đã từ chối"}
                   </Text>
                 </View>
                 <Text style={styles.statusDescription}>
                   {existingRegistration.status === "pending"
-                    ? "Đăng ký của bạn đang được xem xét bởi nhà trường"
+                    ? "Vui lòng xác nhận đồng ý hoặc từ chối tham gia tiêm chủng"
                     : existingRegistration.status === "approved"
-                      ? "Đăng ký đã được phê duyệt. Vui lòng đến đúng giờ"
-                      : "Đăng ký đã bị từ chối hoặc bạn đã từ chối tham gia"}
+                      ? "Bạn đã đồng ý tham gia. Chờ phê duyệt từ nhà trường"
+                      : existingRegistration.status === "rejected"
+                        ? "Bạn đã từ chối tham gia tiêm chủng"
+                        : existingRegistration.status === "expired"
+                          ? "Đăng ký đã hết hạn do quá thời gian xác nhận"
+                          : "Trạng thái không xác định"}
                 </Text>
                 <View style={styles.statusActions}>
-                  <TouchableOpacity style={styles.statusActionButton} activeOpacity={0.7}>
-                    <Ionicons name="calendar-outline" size={16} color="#6366f1" />
-                    <Text style={styles.statusActionText}>Thêm vào lịch</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.statusActionButton} activeOpacity={0.7}>
-                    <Ionicons name="call-outline" size={16} color="#6366f1" />
-                    <Text style={styles.statusActionText}>Liên hệ</Text>
-                  </TouchableOpacity>
+                  {existingRegistration.status === "pending" ? (
+                    <>
+                      <TouchableOpacity 
+                        style={[styles.statusActionButton, styles.approveButton]} 
+                        activeOpacity={0.7}
+                        onPress={() => handleUpdateRegistration("approved")}
+                      >
+                        <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
+                        <Text style={[styles.statusActionText, { color: "#fff" }]}>Đồng ý</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.statusActionButton, styles.rejectButton]} 
+                        activeOpacity={0.7}
+                        onPress={() => handleUpdateRegistration("rejected")}
+                      >
+                        <Ionicons name="close-circle-outline" size={16} color="#fff" />
+                        <Text style={[styles.statusActionText, { color: "#fff" }]}>Từ chối</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <TouchableOpacity style={styles.statusActionButton} activeOpacity={0.7}>
+                        <Ionicons name="calendar-outline" size={16} color="#6366f1" />
+                        <Text style={styles.statusActionText}>Thêm vào lịch</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.statusActionButton} activeOpacity={0.7}>
+                        <Ionicons name="call-outline" size={16} color="#6366f1" />
+                        <Text style={styles.statusActionText}>Liên hệ</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               </View>
             ) : !canRegister(eventData) ? (
@@ -1420,6 +1537,14 @@ const styles = StyleSheet.create({
     color: "#6366f1",
     fontWeight: "600",
     marginLeft: 4,
+  },
+  approveButton: {
+    backgroundColor: "#10b981",
+    borderColor: "#10b981",
+  },
+  rejectButton: {
+    backgroundColor: "#ef4444",
+    borderColor: "#ef4444",
   },
   modernRegisterButton: {
     borderRadius: 20,

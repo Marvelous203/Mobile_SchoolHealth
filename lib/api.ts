@@ -13,12 +13,6 @@ import {
     HealthRecordDetailResponse,
     HealthRecordSearchParams,
     HealthRecordSearchResponse,
-    VaccinationRecord,
-    VaccineType,
-    VaccineTypeSearchParams,
-    VaccineTypeSearchResponse,
-    CreateVaccineTypeRequest,
-    CreateVaccineTypeResponse,
     MedicalEvent,
     MedicalEventSearchParams,
     MedicalEventSearchResponse,
@@ -209,9 +203,10 @@ export interface MedicineItem {
   quantity: number
   timesPerDay: number
   timeSlots?: string[] // Giữ lại để tương thích ngược
-  timeShifts: string[] // Mới: ["morning", "noon", "evening"]
+  timeShifts: string[] // Mới: ["morning", "afternoon", "evening"]
   note: string
   reason: string
+  image?: string // Hình ảnh thuốc
   // Thêm slotStatus nếu backend yêu cầu
   slotStatus?: {
     time: string // ISO date string
@@ -226,6 +221,8 @@ export interface MedicineItem {
     studentId: string
     schoolNurseId: string
     medicines: MedicineItem[]
+    shiftSendMedicine: string
+    image: string
   }
   
   export interface CreateMedicineSubmissionResponse {
@@ -1200,6 +1197,9 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
             if (params.query) queryParams.append('query', params.query)
             if (params.studentId) queryParams.append('studentId', params.studentId)
             if (params.userId) queryParams.append('userId', params.userId)
+            if (params.parentId) queryParams.append('parentId', params.parentId)
+            if (params.severityLevel) queryParams.append('severityLevel', params.severityLevel)
+            if (params.status) queryParams.append('status', params.status)
             if (params.isSerious !== undefined) queryParams.append('isSerious', params.isSerious.toString())
             
             const endpoint = `/medical-events/search?${queryParams.toString()}`
@@ -1576,7 +1576,40 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
         }
     },
 
-    // Create vaccine registration
+    // Get vaccine registrations for event (auto-created when admin creates event)
+    getVaccineRegistrationsForEvent: async (eventId: string, params?: {
+        pageNum?: number;
+        pageSize?: number;
+        status?: "pending" | "approved" | "rejected";
+        studentId?: string;
+        parentId?: string;
+    }) => {
+        try {
+            const queryParams = new URLSearchParams({
+                pageNum: (params?.pageNum || 1).toString(),
+                pageSize: (params?.pageSize || 20).toString(),
+                eventId: eventId
+            })
+            
+            if (params?.status) queryParams.append('status', params.status)
+            if (params?.studentId) queryParams.append('studentId', params.studentId)
+            if (params?.parentId) queryParams.append('parentId', params.parentId)
+            
+            console.log('📝 Getting vaccine registrations for event:', eventId, params)
+            
+            const response = await apiCall(`/vaccine-registration/event?${queryParams.toString()}`, {
+                method: 'GET'
+            })
+            
+            console.log('✅ Vaccine registrations for event loaded:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Get vaccine registrations for event error:', error)
+            throw error
+        }
+    },
+
+    // Create vaccine registration (deprecated - now auto-created by admin when creating event)
     createVaccineRegistration: async (data: {
         parentId: string;
         studentId: string;
@@ -1587,6 +1620,7 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
         note?: string;
     }) => {
         try {
+            console.log('⚠️ DEPRECATED: createVaccineRegistration - registrations are now auto-created when admin creates events')
             console.log('📝 Creating vaccine registration:', data)
             
             const response = await apiCall(`/vaccine-registration/create`, {
@@ -1635,6 +1669,54 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
             return response
         } catch (error) {
             console.error('❌ Update vaccine registration status error:', error)
+            throw error
+        }
+    },
+
+    // Approve vaccine registration
+    approveVaccineRegistration: async (registrationId: string, data?: {
+        consentDate?: string;
+        notes?: string;
+    }) => {
+        try {
+            console.log('✅ Approving vaccine registration:', registrationId, data)
+            
+            const response = await apiCall(`/vaccine-registration/${registrationId}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    status: 'approved',
+                    ...data
+                })
+            })
+            
+            console.log('✅ Vaccine registration approved:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Approve vaccine registration error:', error)
+            throw error
+        }
+    },
+
+    // Reject vaccine registration
+    rejectVaccineRegistration: async (registrationId: string, data: {
+        cancellationReason: string;
+        notes?: string;
+    }) => {
+        try {
+            console.log('❌ Rejecting vaccine registration:', registrationId, data)
+            
+            const response = await apiCall(`/vaccine-registration/${registrationId}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    status: 'rejected',
+                    ...data
+                })
+            })
+            
+            console.log('✅ Vaccine registration rejected:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Reject vaccine registration error:', error)
             throw error
         }
     },
@@ -1717,20 +1799,31 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
         try {
             // Try multiple endpoint patterns since we're not sure which one works
             const endpointsToTry = [
-                `/medical-check-registration/search/${params.pageNum}/${params.pageSize}`,
                 `/medical-check-registration/search`,
-                `/medical-check-registration`
+                `/medical-check-registration`,
+                `/medical-check-registration/search/${params.pageNum}/${params.pageSize}`
             ];
             
-            const queryParams = new URLSearchParams({
-                pageNum: params.pageNum.toString(),
-                pageSize: params.pageSize.toString(),
-                ...(params.studentId && { studentId: params.studentId }),
-                ...(params.eventId && { eventId: params.eventId }),
-                ...(params.parentId && { parentId: params.parentId }),
-                ...(params.status && { status: params.status }),
-                ...(params.schoolYear && { schoolYear: params.schoolYear })
-            });
+            const queryParams = new URLSearchParams();
+            queryParams.append('pageNum', params.pageNum.toString());
+            queryParams.append('pageSize', params.pageSize.toString());
+            
+            if (params.studentId) {
+                queryParams.append('studentId', params.studentId);
+            }
+            if (params.parentId) {
+                queryParams.append('parentId', params.parentId);
+            }
+            if (params.status) {
+                queryParams.append('status', params.status);
+            }
+            if (params.eventId) {
+                queryParams.append('eventId', params.eventId);
+            }
+            // Skip schoolYear for now as server might not support it
+            // if (params.schoolYear) {
+            //     queryParams.append('schoolYear', params.schoolYear);
+            // }
             
             for (const endpoint of endpointsToTry) {
                 try {
@@ -1774,31 +1867,65 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
         }
     },
 
-    // Create health check registration
-    createHealthCheckRegistration: async (data: {
-        parentId: string;
-        studentId: string;
-        eventId: string;
-        status: "pending" | "approved" | "rejected";
-        schoolYear: string;
-        cancellationReason?: string;
-        notes?: string;
+    // Get health check registrations for event (auto-created when admin creates event)
+    getHealthCheckRegistrationsForEvent: async (eventId: string, params?: {
+        pageNum?: number;
+        pageSize?: number;
+        status?: "pending" | "approved" | "rejected";
+        studentId?: string;
+        parentId?: string;
     }) => {
         try {
-            console.log('📝 Creating health check registration:', data)
-            
-            const response = await apiCall(`/medical-check-registration/create`, {
-                method: 'POST',
-                body: JSON.stringify(data)
+            const queryParams = new URLSearchParams({
+                pageNum: (params?.pageNum || 1).toString(),
+                pageSize: (params?.pageSize || 20).toString(),
+                eventId: eventId
             })
             
-            console.log('✅ Health check registration created:', response)
+            if (params?.status) queryParams.append('status', params.status)
+            if (params?.studentId) queryParams.append('studentId', params.studentId)
+            if (params?.parentId) queryParams.append('parentId', params.parentId)
+            
+            console.log('📝 Getting health check registrations for event:', eventId, params)
+            
+            const response = await apiCall(`/medical-check-registration/event?${queryParams.toString()}`, {
+                method: 'GET'
+            })
+            
+            console.log('✅ Health check registrations for event loaded:', response)
             return response
         } catch (error) {
-            console.error('❌ Create health check registration error:', error)
+            console.error('❌ Get health check registrations for event error:', error)
             throw error
         }
     },
+
+    // Create health check registration (deprecated - now auto-created by admin when creating event)
+    // createHealthCheckRegistration: async (data: {
+    //     parentId: string;
+    //     studentId: string;
+    //     eventId: string;
+    //     status: "pending" | "approved" | "rejected";
+    //     schoolYear: string;
+    //     cancellationReason?: string;
+    //     notes?: string;
+    // }) => {
+    //     try {
+    //         console.log('⚠️ DEPRECATED: createHealthCheckRegistration - registrations are now auto-created when admin creates events')
+    //         console.log('📝 Creating health check registration:', data)
+            
+    //         const response = await apiCall(`/medical-check-registration/create`, {
+    //             method: 'POST',
+    //             body: JSON.stringify(data)
+    //         })
+            
+    //         console.log('✅ Health check registration created:', response)
+    //         return response
+    //     } catch (error) {
+    //         console.error('❌ Create health check registration error:', error)
+    //         throw error
+    //     }
+    // },
 
     // Get health check registration detail
     getHealthCheckRegistrationDetail: async (registrationId: string) => {
@@ -1833,6 +1960,54 @@ createMedicineSubmission: async (request: CreateMedicineSubmissionRequest): Prom
             return response
         } catch (error) {
             console.error('❌ Update health check registration status error:', error)
+            throw error
+        }
+    },
+
+    // Approve health check registration
+    approveHealthCheckRegistration: async (registrationId: string, data?: {
+        consentDate?: string;
+        notes?: string;
+    }) => {
+        try {
+            console.log('✅ Approving health check registration:', registrationId, data)
+            
+            const response = await apiCall(`/medical-check-registration/${registrationId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    status: 'approved',
+                    ...data
+                })
+            })
+            
+            console.log('✅ Health check registration approved:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Approve health check registration error:', error)
+            throw error
+        }
+    },
+
+    // Reject health check registration
+    rejectHealthCheckRegistration: async (registrationId: string, data: {
+        cancellationReason: string;
+        notes?: string;
+    }) => {
+        try {
+            console.log('❌ Rejecting health check registration:', registrationId, data)
+            
+            const response = await apiCall(`/medical-check-registration/${registrationId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    status: 'rejected',
+                    ...data
+                })
+            })
+            
+            console.log('✅ Health check registration rejected:', response)
+            return response
+        } catch (error) {
+            console.error('❌ Reject health check registration error:', error)
             throw error
         }
     },
@@ -2448,6 +2623,18 @@ export const deleteVaccineType = async (id: string) => {
   const response = await apiCall(`/vaccine-types/${id}`, {
     method: 'DELETE',
   })
+  return response
+}
+
+// Medicines API
+export const getMedicineById = async (id: string) => {
+  const response = await apiCall(`/medicines/${id}`)
+  return response
+}
+
+// Medical Supplies API
+export const getSupplyById = async (id: string) => {
+  const response = await apiCall(`/medical-supplies/${id}`)
   return response
 }
 

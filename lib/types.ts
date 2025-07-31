@@ -106,18 +106,44 @@ export interface MedicalEventSupply {
   __v: number
 }
 
+// Interface for actions array
+export interface MedicalEventAction {
+  time: string
+  description: string
+  performedBy: string
+}
+
+// Interface for medicines used with quantity
+export interface MedicalEventMedicineUsed {
+  medicineId: string
+  quantity: number
+}
+
+// Interface for medical supplies used with quantity
+export interface MedicalEventSupplyUsed {
+  supplyId: string
+  quantity: number
+}
+
 export interface MedicalEvent {
   _id: string
   studentId: string
+  parentId?: string
   schoolNurseId: string
   eventName: string
   description: string
+  initialCondition?: string // tình trạng ban đầu
+  firstAid?: string // sơ cứu ban đầu
   actionTaken: string
-  medicinesId: string[]
-  medicalSuppliesId: string[]
-  severityLevel: 'Critical' | 'Moderate' | 'Mild'
-  status: 'monitoring' | 'transferred' | 'resolved' | 'pending'
-  leaveMethod: 'parent_pickup' | 'ambulance' | 'self_discharge' | 'none'
+  actions: MedicalEventAction[]
+  medicinesUsed: MedicalEventMedicineUsed[]
+  medicalSuppliesUsed: MedicalEventSupplyUsed[]
+  status: 'treated' | 'monitoring' | 'transferred'
+  leaveMethod: 'none' | 'parent_pickup' | 'hospital_transfer'
+  leaveTime?: string
+  pickedUpBy?: string
+  parentContactStatus: 'not_contacted' | 'contacting' | 'contacted'
+  parentContactedAt?: string
   images: string[]
   notes: string
   isDeleted: boolean
@@ -129,17 +155,19 @@ export interface MedicalEvent {
   schoolNurse: MedicalEventSchoolNurse
   medicines: MedicalEventMedicine[]
   medicalSupplies: MedicalEventSupply[]
-  medicinesUsed: MedicalEventMedicine[]
-  medicalSuppliesUsed: MedicalEventSupply[]
   id: string
-  // Legacy field for backward compatibility
+  // Legacy fields for backward compatibility
   isSerious?: boolean
+  medicinesId?: string[]
+  medicalSuppliesId?: string[]
+  severityLevel?: 'Critical' | 'Moderate' | 'Mild'
 }
 
 export interface MedicalEventSearchParams {
   query?: string
   studentId?: string
   userId?: string
+  parentId?: string
   severityLevel?: string
   status?: string
   pageNum: number
@@ -235,13 +263,23 @@ export interface VaccineAppointmentEvent {
   __v: number
 }
 
+export interface VaccineAppointmentCheckedBy {
+  _id: string
+  email: string
+  fullName: string
+  phone: string
+  role: string
+  image?: string
+  fullPermission?: boolean
+}
+
 export interface VaccineAppointmentResult {
   _id: string
   studentId: string
   eventId: string
   isEligible: boolean
   isDeleted: boolean
-  status: 'pending' | 'completed' | 'cancelled'
+  status: 'pending' | 'completed' | 'cancelled' | 'vaccinated'
   schoolYear: string
   postVaccinationStatus: 'not_checked' | 'normal' | 'adverse_reaction'
   createdAt: string
@@ -249,6 +287,12 @@ export interface VaccineAppointmentResult {
   __v: number
   student: VaccineAppointmentStudent
   event: VaccineAppointmentEvent
+  bloodPressure?: string
+  checkedBy?: VaccineAppointmentCheckedBy
+  notes?: string
+  vaccinatedAt?: string
+  postVaccinationNotes?: string
+  reasonIfIneligible?: string
 }
 
 export interface VaccineAppointmentSearchParams {
@@ -734,11 +778,17 @@ export interface MedicalCheckAppointment {
   checkedBy?: string
   height?: number
   weight?: number
+  bmi?: number // chỉ số BMI
   visionLeft?: number
   visionRight?: number
   bloodPressure?: string
   heartRate?: number
-  isEligible: boolean
+  dentalHealth?: string // tình trạng răng miệng
+  entHealth?: string    // tai mũi họng
+  skinCondition?: string // da liễu
+  isHealthy: boolean
+  reasonIfUnhealthy?: string
+  isEligible?: boolean
   reasonIfIneligible?: string
   notes?: string
   isDeleted: boolean

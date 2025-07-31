@@ -28,10 +28,8 @@ export default function CreateAppointmentScreen() {
   const [students, setStudents] = useState<any[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
 
-  // Fixed time slots from 7:00 to 17:00
+  // Business hours time slots (8:00 AM - 5:00 PM, excluding lunch break 11:30 AM - 1:00 PM)
   const timeSlots = [
-    { hour: 7, minute: 0, label: "07:00" },
-    { hour: 7, minute: 30, label: "07:30" },
     { hour: 8, minute: 0, label: "08:00" },
     { hour: 8, minute: 30, label: "08:30" },
     { hour: 9, minute: 0, label: "09:00" },
@@ -39,9 +37,7 @@ export default function CreateAppointmentScreen() {
     { hour: 10, minute: 0, label: "10:00" },
     { hour: 10, minute: 30, label: "10:30" },
     { hour: 11, minute: 0, label: "11:00" },
-    { hour: 11, minute: 30, label: "11:30" },
-    { hour: 12, minute: 0, label: "12:00" },
-    { hour: 12, minute: 30, label: "12:30" },
+    // Lunch break from 11:30 AM to 1:00 PM is excluded
     { hour: 13, minute: 0, label: "13:00" },
     { hour: 13, minute: 30, label: "13:30" },
     { hour: 14, minute: 0, label: "14:00" },
@@ -60,7 +56,7 @@ export default function CreateAppointmentScreen() {
     tomorrow.setHours(9, 0, 0, 0); // Set default time to 9:00 AM
     return tomorrow;
   });
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState(timeSlots[4]); // Default to 09:00
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState(timeSlots[2]); // Default to 09:00
   const [reason, setReason] = useState("");
   const [type, setType] = useState("other");
   const [note, setNote] = useState("");
@@ -127,6 +123,63 @@ export default function CreateAppointmentScreen() {
     );
     
     return holiday ? holiday.name : null;
+  };
+
+  // Validate appointment time from ISO string (for API responses)
+  const validateAppointmentTime = (appointmentTimeISO: string): { isValid: boolean; errorMessage?: string } => {
+    const appointmentDate = new Date(appointmentTimeISO);
+    const appointmentHour = appointmentDate.getHours();
+    const appointmentMinute = appointmentDate.getMinutes();
+
+    // Check if appointment time is at least 1 day in advance
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    
+    if (appointmentDate < tomorrow) {
+      return {
+        isValid: false,
+        errorMessage: "Lịch hẹn phải được đặt trước ít nhất 1 ngày. Vui lòng chọn ngày từ ngày mai trở đi."
+      };
+    }
+
+    // Check if selected date is weekend
+    if (isWeekend(appointmentDate)) {
+      return {
+        isValid: false,
+        errorMessage: "Không thể đặt lịch hẹn vào cuối tuần (Thứ 7 và Chủ nhật). Vui lòng chọn ngày khác."
+      };
+    }
+
+    // Check if selected date is a holiday
+    if (isHoliday(appointmentDate)) {
+      const holidayName = getHolidayName(appointmentDate);
+      return {
+        isValid: false,
+        errorMessage: `Không thể đặt lịch hẹn vào ngày lễ (${holidayName}). Vui lòng chọn ngày khác.`
+      };
+    }
+
+    // Check if selected time is within business hours (8:00 AM - 5:00 PM)
+    if (appointmentHour < 8 || appointmentHour > 17) {
+      return {
+        isValid: false,
+        errorMessage: "Chỉ có thể đặt lịch hẹn trong giờ hành chính (8:00 - 17:00). Vui lòng chọn giờ khác."
+      };
+    }
+
+    // Check if selected time is during lunch break (11:30 AM - 1:00 PM)
+    if ((appointmentHour === 11 && appointmentMinute >= 30) || 
+        (appointmentHour === 12) || 
+        (appointmentHour === 13 && appointmentMinute === 0)) {
+      return {
+        isValid: false,
+        errorMessage: "Không thể đặt lịch hẹn trong giờ nghỉ trưa (11:30 - 13:00). Vui lòng chọn giờ khác."
+      };
+    }
+
+    return { isValid: true };
   };
 
   useEffect(() => {
@@ -228,6 +281,29 @@ export default function CreateAppointmentScreen() {
     // Set the selected time slot to appointment time
     const finalAppointmentTime = new Date(appointmentTime);
     finalAppointmentTime.setHours(selectedTimeSlot.hour, selectedTimeSlot.minute, 0, 0);
+
+    // Check if selected time is within business hours (8:00 AM - 5:00 PM)
+    const appointmentHour = finalAppointmentTime.getHours();
+    const appointmentMinute = finalAppointmentTime.getMinutes();
+    
+    if (appointmentHour < 8 || appointmentHour > 17) {
+      Alert.alert(
+        "Lỗi", 
+        "Chỉ có thể đặt lịch hẹn trong giờ hành chính (8:00 - 17:00). Vui lòng chọn giờ khác."
+      );
+      return;
+    }
+
+    // Check if selected time is during lunch break (11:30 AM - 1:00 PM)
+    if ((appointmentHour === 11 && appointmentMinute >= 30) || 
+        (appointmentHour === 12) || 
+        (appointmentHour === 13 && appointmentMinute === 0)) {
+      Alert.alert(
+        "Lỗi", 
+        "Không thể đặt lịch hẹn trong giờ nghỉ trưa (11:30 - 13:00). Vui lòng chọn giờ khác."
+      );
+      return;
+    }
 
     setLoading(true);
 
@@ -432,7 +508,7 @@ export default function CreateAppointmentScreen() {
                 </View>
               </ScrollView>
               <Text style={styles.timeSlotNote}>
-                Khung giờ làm việc: 7:00 - 17:00
+                Giờ hành chính: 8:00 - 17:00 (nghỉ trưa 11:30 - 13:00)
               </Text>
             </View>
           </View>

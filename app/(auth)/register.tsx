@@ -17,7 +17,7 @@ export default function Register() {
   const [error, setError] = useState("")
   
   // For parent role - student relationships
-  const [studentCode, setStudentCode] = useState("")
+  const [studentCodes, setStudentCodes] = useState<string[]>([""])
   const [parentType, setParentType] = useState<"father" | "mother" | "guardian">("father")
 
   const validatePassword = (password: string): string | null => {
@@ -63,9 +63,9 @@ export default function Register() {
       return
     }
 
-    // Validate student code only for mother role
-    if (parentType === "mother" && !studentCode) {
-      setError("Please enter student code for mother registration")
+    // Validate student codes only for mother role
+    if (parentType === "mother" && studentCodes.filter(code => code.trim()).length === 0) {
+      setError("Please enter at least one student code for mother registration")
       return
     }
 
@@ -81,12 +81,12 @@ export default function Register() {
         phone,
         role: "parent", // Fixed as parent
         isDeleted: false,
-        // Only include studentParents if studentCode is provided
-        ...(studentCode && {
-          studentParents: [{
-            studentCode,
+        // Only include studentParents if studentCodes are provided
+        ...(studentCodes.filter(code => code.trim()).length > 0 && {
+          studentParents: studentCodes.filter(code => code.trim()).map(code => ({
+            studentCode: code.trim(),
             type: parentType
-          }]
+          }))
         })
       }
       
@@ -229,17 +229,40 @@ export default function Register() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Student Code {parentType === "mother" ? "*" : "(Optional)"}
+            <Text style={styles.label}>Student Codes {parentType === "mother" ? "*" : "(Optional)"}
             </Text>
-            <TextInput
-              style={styles.input}
-              placeholder={parentType === "mother" 
-                ? "Enter student code (required for mother)" 
-                : "Enter student code (optional)"}
-              value={studentCode}
-              onChangeText={setStudentCode}
-              autoCapitalize="characters"
-            />
+            {studentCodes.map((code, index) => (
+              <View key={index} style={styles.studentCodeRow}>
+                <TextInput
+                  style={[styles.input, styles.studentCodeInput]}
+                  placeholder={`Enter student code ${index + 1}`}
+                  value={code}
+                  onChangeText={(text) => {
+                    const newCodes = [...studentCodes]
+                    newCodes[index] = text
+                    setStudentCodes(newCodes)
+                  }}
+                  autoCapitalize="characters"
+                />
+                {studentCodes.length > 1 && (
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => {
+                      const newCodes = studentCodes.filter((_, i) => i !== index)
+                      setStudentCodes(newCodes)
+                    }}
+                  >
+                    <Text style={styles.removeButtonText}>×</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => setStudentCodes([...studentCodes, ""])}
+            >
+              <Text style={styles.addButtonText}>+ Add Another Student Code</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.roleSelector}>
@@ -398,5 +421,40 @@ const styles = StyleSheet.create({
   loginLink: {
     color: "#1890ff",
     fontWeight: "600",
+  },
+  studentCodeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  studentCodeInput: {
+    flex: 1,
+    marginRight: 10,
+    marginBottom: 0,
+  },
+  removeButton: {
+    backgroundColor: "#ff4d4f",
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  removeButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  addButton: {
+    backgroundColor: "#52c41a",
+    borderRadius: 8,
+    padding: 10,
+    alignItems: "center",
+    marginTop: 5,
+  },
+  addButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
   },
 })

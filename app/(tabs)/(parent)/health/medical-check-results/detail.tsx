@@ -166,10 +166,10 @@ export default function MedicalCheckResultDetailScreen() {
     );
   }
 
-  const healthConfig = getHealthStatusConfig(medicalCheckResult.isEligible);
+  const healthConfig = getHealthStatusConfig(medicalCheckResult.isHealthy ?? true);
   const postCheckConfig = getPostCheckStatusConfig(medicalCheckResult.postMedicalCheckStatus);
-  const bmi = calculateBMI(medicalCheckResult.weight, medicalCheckResult.height);
-  const bmiStatus = getBMIStatus(parseFloat(bmi));
+  const bmi = medicalCheckResult.bmi?.toString() || "0";
+  const bmiStatus = getBMIStatus(medicalCheckResult.bmi || 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -423,7 +423,7 @@ export default function MedicalCheckResultDetailScreen() {
               <View style={styles.infoRow}>
                 <View style={styles.infoItem}>
                   <Text style={styles.infoLabel}>Tên sự kiện</Text>
-                  <Text style={styles.infoValue}>{medicalCheckResult.event?.title || "Không có thông tin"}</Text>
+                  <Text style={styles.infoValue}>{medicalCheckResult.event?.eventName || "Không có thông tin"}</Text>
                 </View>
               </View>
 
@@ -463,6 +463,58 @@ export default function MedicalCheckResultDetailScreen() {
             </View>
           </View>
 
+          {/* Health Examination Details Card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardIconContainer}>
+                <Ionicons name="medical" size={24} color="#10b981" />
+              </View>
+              <Text style={styles.cardTitle}>Chi tiết khám sức khỏe</Text>
+            </View>
+
+            <View style={styles.cardContent}>
+              {medicalCheckResult.dentalHealth && (
+                <View style={styles.healthDetailCard}>
+                  <View style={styles.healthDetailHeader}>
+                    <Ionicons name="happy" size={20} color="#6366f1" />
+                    <Text style={styles.healthDetailTitle}>Tình trạng răng miệng</Text>
+                  </View>
+                  <Text style={styles.healthDetailValue}>{medicalCheckResult.dentalHealth}</Text>
+                </View>
+              )}
+
+              {medicalCheckResult.entHealth && (
+                <View style={styles.healthDetailCard}>
+                  <View style={styles.healthDetailHeader}>
+                    <Ionicons name="ear" size={20} color="#f59e0b" />
+                    <Text style={styles.healthDetailTitle}>Tai mũi họng</Text>
+                  </View>
+                  <Text style={styles.healthDetailValue}>{medicalCheckResult.entHealth}</Text>
+                </View>
+              )}
+
+              {medicalCheckResult.skinCondition && (
+                <View style={styles.healthDetailCard}>
+                  <View style={styles.healthDetailHeader}>
+                    <Ionicons name="hand-left" size={20} color="#ef4444" />
+                    <Text style={styles.healthDetailTitle}>Tình trạng da</Text>
+                  </View>
+                  <Text style={styles.healthDetailValue}>{medicalCheckResult.skinCondition}</Text>
+                </View>
+              )}
+
+              {!medicalCheckResult.isHealthy && medicalCheckResult.reasonIfUnhealthy && (
+                <View style={styles.healthDetailCard}>
+                  <View style={styles.healthDetailHeader}>
+                    <Ionicons name="warning" size={20} color="#ef4444" />
+                    <Text style={styles.healthDetailTitle}>Lý do không khỏe mạnh</Text>
+                  </View>
+                  <Text style={[styles.healthDetailValue, { color: '#ef4444' }]}>{medicalCheckResult.reasonIfUnhealthy}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
           {/* Medical Information Card */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
@@ -473,38 +525,22 @@ export default function MedicalCheckResultDetailScreen() {
             </View>
 
             <View style={styles.cardContent}>
-              {medicalCheckResult.checker && (
+              {medicalCheckResult.checkedBy && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Bác sĩ khám</Text>
-                    <Text style={styles.infoValue}>{medicalCheckResult.checker.fullName}</Text>
+                    <Text style={styles.infoValue}>{medicalCheckResult.checkedBy.fullName || 'Không có thông tin'}</Text>
                   </View>
                 </View>
               )}
 
-              {medicalCheckResult.checker?.phone && (
+              {medicalCheckResult.medicalCheckedAt && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Số điện thoại bác sĩ</Text>
-                    <Text style={styles.infoValue}>{medicalCheckResult.checker.phone}</Text>
-                  </View>
-                </View>
-              )}
-
-              {medicalCheckResult.checker?.email && (
-                <View style={styles.infoRow}>
-                  <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Email bác sĩ</Text>
-                    <Text style={styles.infoValue}>{medicalCheckResult.checker.email}</Text>
-                  </View>
-                </View>
-              )}
-
-              {!medicalCheckResult.isEligible && medicalCheckResult.reasonIfIneligible && (
-                <View style={styles.infoRow}>
-                  <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Lý do không đủ điều kiện</Text>
-                    <Text style={styles.infoValue}>{medicalCheckResult.reasonIfIneligible}</Text>
+                    <Text style={styles.infoLabel}>Thời gian khám</Text>
+                    <Text style={styles.infoValue}>
+                      {formatDate(medicalCheckResult.medicalCheckedAt)} lúc {formatTime(medicalCheckResult.medicalCheckedAt)}
+                    </Text>
                   </View>
                 </View>
               )}
@@ -518,25 +554,25 @@ export default function MedicalCheckResultDetailScreen() {
                 </View>
               )}
 
-              {medicalCheckResult.postMedicalCheckNotes && (
-                <View style={styles.infoRow}>
-                  <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Ghi chú sau khám</Text>
-                    <Text style={styles.infoValue}>{medicalCheckResult.postMedicalCheckNotes}</Text>
-                  </View>
-                </View>
-              )}
-
-              {medicalCheckResult.checkedAt && (
-                <View style={styles.infoRow}>
-                  <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Thời gian khám</Text>
-                    <Text style={styles.infoValue}>
-                      {formatDate(medicalCheckResult.checkedAt)} lúc {formatTime(medicalCheckResult.checkedAt)}
+              <View style={styles.infoRow}>
+                <View style={styles.infoItem}>
+                  <Text style={styles.infoLabel}>Tình trạng sức khỏe tổng quát</Text>
+                  <View style={[styles.statusBadge, { 
+                    backgroundColor: medicalCheckResult.isHealthy ? '#ECFDF5' : '#FEF2F2' 
+                  }]}>
+                    <Ionicons 
+                      name={medicalCheckResult.isHealthy ? 'checkmark-circle' : 'warning'} 
+                      size={14} 
+                      color={medicalCheckResult.isHealthy ? '#10B981' : '#EF4444'} 
+                    />
+                    <Text style={[styles.statusBadgeText, { 
+                      color: medicalCheckResult.isHealthy ? '#10B981' : '#EF4444' 
+                    }]}>
+                      {medicalCheckResult.isHealthy ? 'Khỏe mạnh' : 'Có vấn đề sức khỏe'}
                     </Text>
                   </View>
                 </View>
-              )}
+              </View>
             </View>
           </View>
         </View>
@@ -938,5 +974,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#1f2937",
     fontWeight: "bold",
+  },
+  healthDetailCard: {
+    backgroundColor: "#f8fafc",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginBottom: 12,
+  },
+  healthDetailHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 8,
+  },
+  healthDetailTitle: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "600",
+  },
+  healthDetailValue: {
+    fontSize: 15,
+    color: "#1f2937",
+    fontWeight: "500",
+    lineHeight: 20,
   },
 });

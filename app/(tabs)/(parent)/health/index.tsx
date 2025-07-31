@@ -2,11 +2,11 @@ import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -24,7 +24,7 @@ export default function HealthScreen() {
     },
     {
       id: "medical-events",
-      title: "Sự kiện Y tế",
+      title: "Sự cố y tế",
       description: "Lịch sử tai nạn và sự cố y tế",
       icon: "first-aid",
       color: "#ff7875",

@@ -1,12 +1,9 @@
-import {
-  api,
-  CreateMedicineSubmissionRequest,
-  MedicineItem,
-  SchoolNurse,
-} from "@/lib/api";
+import {api,CreateMedicineSubmissionRequest,MedicineItem,SchoolNurse,} from "@/lib/api";
 import { checkUserPermission, showPermissionDeniedAlert, useAuth } from "@/lib/auth";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -99,6 +96,19 @@ const calculateSmartQuantity = (dosage: string, timesPerDay: number, daysOfUse: 
   return Math.ceil(totalDosageNeeded);
 };
 
+// Hàm chuyển đổi hình ảnh thành base64
+const convertImageToBase64 = async (imageUri: string): Promise<string | null> => {
+  try {
+    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+      encoding: 'base64'
+    });
+    return `data:image/jpeg;base64,${base64}`;
+  } catch (error) {
+    console.error('Error converting image to base64:', error);
+    return null;
+  }
+};
+
 
 
 export default function CreateMedicineScreen() {
@@ -146,6 +156,10 @@ export default function CreateMedicineScreen() {
   // Thêm state cho smart calculation
   const [showDosageHelper, setShowDosageHelper] = useState(false);
   const [daysOfUse, setDaysOfUse] = useState(1);
+  
+  // State cho ca gửi thuốc và ảnh đơn thuốc
+  const [shiftSendMedicine, setShiftSendMedicine] = useState<string>('afternoon');
+  const [prescriptionImage, setPrescriptionImage] = useState<string>('');
 
   useEffect(() => {
     loadUserAndStudentData();
@@ -358,7 +372,7 @@ export default function CreateMedicineScreen() {
       case 'morning':
         // Ca sáng: 6h - 11h - có thể chọn nếu chưa qua 11h
         return currentHour <= 11;
-      case 'noon':
+      case 'afternoon':
         // Ca trưa: 11h - 15h - có thể chọn nếu chưa qua 15h
         return currentHour <= 15;
       case 'evening':
@@ -372,7 +386,7 @@ export default function CreateMedicineScreen() {
   const getShiftTimeRange = (shift: string) => {
     switch (shift) {
       case 'morning': return '6h - 11h';
-      case 'noon': return '11h - 15h';
+      case 'afternoon': return '11h - 15h';
       case 'evening': return '15h - 21h';
       default: return '';
     }
@@ -411,10 +425,180 @@ export default function CreateMedicineScreen() {
   const getShiftDisplayName = (shift: string) => {
     const shiftNames = {
       morning: "Sáng",
-      noon: "Trưa", 
+      afternoon: "Trưa", 
       evening: "Chiều"
     };
     return shiftNames[shift] || shift;
+  };
+
+  const handleImagePicker = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Lỗi', 'Cần quyền truy cập thư viện ảnh để chọn hình ảnh');
+        return;
+      }
+
+      // Show action sheet
+      Alert.alert(
+        'Chọn hình ảnh',
+        'Bạn muốn chọn hình ảnh từ đâu?',
+        [
+          {
+            text: 'Thư viện ảnh',
+            onPress: () => pickImageFromLibrary()
+          },
+          {
+            text: 'Chụp ảnh',
+            onPress: () => takePhoto()
+          },
+          {
+            text: 'Hủy',
+            style: 'cancel'
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error requesting permission:', error);
+      Alert.alert('Lỗi', 'Có lỗi xảy ra khi yêu cầu quyền truy cập');
+    }
+  };
+
+  const pickImageFromLibrary = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const base64Image = await convertImageToBase64(result.assets[0].uri);
+        if (base64Image) {
+          updateCurrentMedicine({ image: base64Image });
+        } else {
+          Alert.alert('Lỗi', 'Không thể chuyển đổi hình ảnh');
+        }
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Lỗi', 'Có lỗi xảy ra khi chọn hình ảnh');
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Lỗi', 'Cần quyền truy cập camera để chụp ảnh');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const base64Image = await convertImageToBase64(result.assets[0].uri);
+        if (base64Image) {
+          updateCurrentMedicine({ image: base64Image });
+        } else {
+          Alert.alert('Lỗi', 'Không thể chuyển đổi hình ảnh');
+        }
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Lỗi', 'Có lỗi xảy ra khi chụp ảnh');
+    }
+  };
+
+  const handlePrescriptionImagePicker = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Lỗi', 'Cần quyền truy cập thư viện ảnh để chọn hình ảnh');
+        return;
+      }
+
+      // Show action sheet
+      Alert.alert(
+        'Chọn ảnh đơn thuốc',
+        'Bạn muốn chọn ảnh đơn thuốc từ đâu?',
+        [
+          {
+            text: 'Thư viện ảnh',
+            onPress: () => pickPrescriptionFromLibrary()
+          },
+          {
+            text: 'Chụp ảnh',
+            onPress: () => takePrescriptionPhoto()
+          },
+          {
+            text: 'Hủy',
+            style: 'cancel'
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error requesting permission:', error);
+      Alert.alert('Lỗi', 'Có lỗi xảy ra khi yêu cầu quyền truy cập');
+    }
+  };
+
+  const pickPrescriptionFromLibrary = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const base64Image = await convertImageToBase64(result.assets[0].uri);
+        if (base64Image) {
+          setPrescriptionImage(base64Image);
+        } else {
+          Alert.alert('Lỗi', 'Không thể chuyển đổi ảnh đơn thuốc');
+        }
+      }
+    } catch (error) {
+      console.error('Error picking prescription image:', error);
+      Alert.alert('Lỗi', 'Có lỗi xảy ra khi chọn ảnh đơn thuốc');
+    }
+  };
+
+  const takePrescriptionPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Lỗi', 'Cần quyền truy cập camera để chụp ảnh');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const base64Image = await convertImageToBase64(result.assets[0].uri);
+        if (base64Image) {
+          setPrescriptionImage(base64Image);
+        } else {
+          Alert.alert('Lỗi', 'Không thể chuyển đổi ảnh đơn thuốc');
+        }
+      }
+    } catch (error) {
+      console.error('Error taking prescription photo:', error);
+      Alert.alert('Lỗi', 'Có lỗi xảy ra khi chụp ảnh đơn thuốc');
+    }
   };
 
   const handleSubmit = async () => {
@@ -474,7 +658,7 @@ export default function CreateMedicineScreen() {
     setLoading(true);
 
     try {
-      // Format medicines data với timeShifts
+      // Format medicines data với timeShifts và image
       const formattedMedicines = medicines.map(medicine => {
         return {
           name: medicine.name,
@@ -484,7 +668,8 @@ export default function CreateMedicineScreen() {
           timesPerDay: medicine.timesPerDay,
           timeShifts: medicine.timeShifts,
           note: medicine.note,
-          reason: medicine.reason
+          reason: medicine.reason,
+          image: medicine.image
         };
       });
 
@@ -493,6 +678,8 @@ export default function CreateMedicineScreen() {
         studentId: selectedStudent._id,
         schoolNurseId: selectedNurse._id,
         medicines: formattedMedicines,
+        shiftSendMedicine: shiftSendMedicine,
+        image: prescriptionImage,
       };
 
       console.log("💊 Creating medicine submission:", JSON.stringify(request, null, 2));
@@ -688,6 +875,72 @@ export default function CreateMedicineScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Shift Send Medicine Selection */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ca gửi thuốc</Text>
+            <Text style={styles.helperText}>Chọn ca bạn sẽ gửi thuốc đến trường</Text>
+            <View style={styles.shiftSendContainer}>
+              {[
+                { value: 'morning', label: 'Sáng (6h - 11h)', icon: 'sunny' },
+                { value: 'afternoon', label: 'Trưa (11h - 15h)', icon: 'partly-sunny' },
+                { value: 'evening', label: 'Chiều (15h - 21h)', icon: 'moon' }
+              ].map((shift) => (
+                <TouchableOpacity
+                  key={shift.value}
+                  style={[
+                    styles.shiftSendButton,
+                    shiftSendMedicine === shift.value && styles.shiftSendButtonSelected
+                  ]}
+                  onPress={() => setShiftSendMedicine(shift.value)}
+                >
+                  <View style={styles.shiftSendContent}>
+                    <Ionicons 
+                      name={shift.icon as any} 
+                      size={20} 
+                      color={shiftSendMedicine === shift.value ? '#4CAF50' : '#666'} 
+                    />
+                    <Text style={[
+                      styles.shiftSendText,
+                      shiftSendMedicine === shift.value && styles.shiftSendTextSelected
+                    ]}>
+                      {shift.label}
+                    </Text>
+                  </View>
+                  {shiftSendMedicine === shift.value && (
+                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Prescription Image */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ảnh đơn thuốc</Text>
+            <TouchableOpacity
+              style={styles.prescriptionImageButton}
+              onPress={handlePrescriptionImagePicker}
+            >
+              {prescriptionImage ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Text style={styles.imageSelectedText}>Đã chọn ảnh đơn thuốc</Text>
+                  <TouchableOpacity
+                    style={styles.removeImageButton}
+                    onPress={() => setPrescriptionImage('')}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#ff4444" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.imagePickerContent}>
+                  <Ionicons name="document-text" size={24} color="#666" />
+                  <Text style={styles.imagePickerText}>Chụp ảnh đơn thuốc</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <Text style={styles.helperText}>Chụp ảnh đơn thuốc của bác sĩ để y tá dễ kiểm tra</Text>
+          </View>
+
           {/* Medicine Tabs */}
           {renderMedicineTabs()}
 
@@ -706,6 +959,32 @@ export default function CreateMedicineScreen() {
                 placeholder="Nhập tên thuốc"
               />
             </View>
+
+            {/* <View style={styles.inputGroup}>
+              <Text style={styles.label}>Hình ảnh thuốc</Text>
+              <TouchableOpacity
+                style={styles.imagePickerButton}
+                onPress={() => handleImagePicker()}
+              >
+                {currentMedicine.image ? (
+                  <View style={styles.imagePreviewContainer}>
+                    <Text style={styles.imageSelectedText}>Đã chọn hình ảnh</Text>
+                    <TouchableOpacity
+                      style={styles.removeImageButton}
+                      onPress={() => updateCurrentMedicine({ image: undefined })}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#ff4444" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.imagePickerContent}>
+                    <Ionicons name="camera" size={24} color="#666" />
+                    <Text style={styles.imagePickerText}>Chọn hình ảnh thuốc</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <Text style={styles.helperText}>Chụp hoặc chọn hình ảnh thuốc để dễ nhận biết</Text>
+            </View> */}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Liều lượng</Text>
@@ -781,7 +1060,7 @@ export default function CreateMedicineScreen() {
                         const defaultShifts = {
                           1: ['morning'],
                           2: ['morning', 'evening'],
-                          3: ['morning', 'noon', 'evening']
+                          3: ['morning', 'afternoon', 'evening']
                         };
                         
                         updateCurrentMedicine({
@@ -857,7 +1136,7 @@ export default function CreateMedicineScreen() {
             <Text style={styles.helperText}>Chọn các ca trong ngày cần uống thuốc</Text>
             
             <View style={styles.timeShiftsContainer}>
-              {['morning', 'noon', 'evening'].map((shift) => {
+              {['morning', 'afternoon', 'evening'].map((shift) => {
                 const isSelected = currentMedicine.timeShifts.includes(shift);
                 return (
                   <TouchableOpacity
@@ -1593,5 +1872,90 @@ const styles = StyleSheet.create({
    },
    validationTextError: {
      color: "#ff9800",
+   },
+   // Image Picker styles
+   imagePickerButton: {
+     borderWidth: 1,
+     borderColor: "#ddd",
+     borderRadius: 8,
+     paddingVertical: 16,
+     paddingHorizontal: 12,
+     backgroundColor: "#fff",
+     borderStyle: "dashed",
+   },
+   imagePickerContent: {
+     flexDirection: "row",
+     alignItems: "center",
+     justifyContent: "center",
+   },
+   imagePickerText: {
+     fontSize: 16,
+     color: "#666",
+     marginLeft: 8,
+   },
+   imagePreviewContainer: {
+     flexDirection: "row",
+     alignItems: "center",
+     justifyContent: "space-between",
+   },
+   imageSelectedText: {
+     fontSize: 16,
+     color: "#4CAF50",
+     fontWeight: "500",
+   },
+   removeImageButton: {
+     padding: 4,
+   },
+   // Shift Send Medicine styles
+   shiftSendContainer: {
+     marginTop: 8,
+   },
+   shiftSendButton: {
+     flexDirection: "row",
+     alignItems: "center",
+     justifyContent: "space-between",
+     paddingVertical: 12,
+     paddingHorizontal: 16,
+     marginBottom: 8,
+     borderRadius: 8,
+     borderWidth: 1,
+     borderColor: "#ddd",
+     backgroundColor: "#fff",
+   },
+   shiftSendButtonSelected: {
+     backgroundColor: "#f0fff4",
+     borderColor: "#4CAF50",
+   },
+   shiftSendContent: {
+     flexDirection: "row",
+     alignItems: "center",
+     flex: 1,
+   },
+   shiftSendText: {
+     fontSize: 16,
+     color: "#333",
+     marginLeft: 12,
+     fontWeight: "500",
+   },
+   shiftSendTextSelected: {
+     color: "#4CAF50",
+     fontWeight: "600",
+   },
+   // Prescription Image styles
+   prescriptionImageButton: {
+     borderWidth: 1,
+     borderColor: "#ddd",
+     borderRadius: 8,
+     paddingVertical: 16,
+     paddingHorizontal: 12,
+     backgroundColor: "#fff",
+     borderStyle: "dashed",
+     marginBottom: 8,
+   },
+   helperText: {
+     fontSize: 12,
+     color: "#666",
+     fontStyle: "italic",
+     marginTop: 4,
    },
 });

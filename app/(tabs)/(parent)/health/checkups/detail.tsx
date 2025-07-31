@@ -134,9 +134,9 @@ export default function HealthCheckDetailScreen() {
   const getRegistrationStatusText = (status: string): string => {
     switch (status) {
       case 'pending':
-        return 'Chờ xác nhận';
+        return 'Chờ xác nhận từ phụ huynh';
       case 'approved':
-        return 'Đã được duyệt';
+        return 'Đã đồng ý - Chờ duyệt';
       case 'rejected':
         return 'Đã từ chối';
       case 'cancelled':
@@ -196,21 +196,61 @@ export default function HealthCheckDetailScreen() {
     try {
       setIsProcessing(true);
 
-      const registrationData = {
-        parentId: currentUserId,
+      // First, get the auto-created registration for this event and student
+      console.log("🔍 Finding auto-created registration for event:", eventId, "student:", studentId);
+      
+      const registrationsResponse = await api.getHealthCheckRegistrationsForEvent(eventId, {
         studentId: studentId,
-        eventId: eventId,
-        status: consent ? ("pending" as const) : ("rejected" as const),
-        schoolYear: event.schoolYear,
+        parentId: currentUserId,
+        status: "pending"
+      });
+
+      if (!registrationsResponse.success || !registrationsResponse.pageData || registrationsResponse.pageData.length === 0) {
+        Alert.alert("Lỗi", "Không tìm thấy đơn đăng ký. Vui lòng liên hệ nhà trường.");
+        return;
+      }
+
+      const registration = registrationsResponse.pageData[0];
+      console.log("✅ Found registration:", registration);
+
+      // Update the registration status
+      const updateData = {
+        status: consent ? ("approved" as const) : ("rejected" as const),
+        consentDate: consent ? new Date().toISOString() : undefined,
         notes: consent ? "Đồng ý tham gia khám sức khỏe" : rejectionReason,
         ...(consent ? {} : { cancellationReason: rejectionReason }),
       };
 
-      console.log("📝 Submitting registration:", registrationData);
+      // Check if registration is still in pending status
+      if (registration.status !== "pending") {
+        Alert.alert(
+          "Thông báo", 
+          "Đăng ký này đã được xử lý. Vui lòng tải lại trang để xem trạng thái mới nhất.",
+          [{
+            text: "Tải lại",
+            onPress: () => {
+              setShowConsentModal(false);
+              checkExistingRegistration();
+            }
+          }]
+        );
+        return;
+      }
 
-      const response = await api.createHealthCheckRegistration(registrationData);
+      console.log("📝 Updating registration status:", registration._id, updateData);
 
-      if (response.success) {
+      const response = consent 
+        ? await api.approveHealthCheckRegistration(registration._id, {
+            consentDate: updateData.consentDate,
+            notes: updateData.notes
+          })
+        : await api.rejectHealthCheckRegistration(registration._id, {
+            cancellationReason: rejectionReason,
+            notes: updateData.notes
+          });
+
+      // Check if response is successful (API returns the updated registration object directly)
+      if (response && (response._id || response.id)) {
         setShowConsentModal(false);
         
         const message = consent
@@ -226,11 +266,27 @@ export default function HealthCheckDetailScreen() {
           },
         ]);
       } else {
-        Alert.alert("Lỗi", response.message || "Không thể đăng ký");
+        Alert.alert("Lỗi", "Không thể cập nhật đăng ký");
       }
     } catch (error: any) {
-      console.error("❌ Registration error:", error);
-      Alert.alert("Lỗi", error.message || "Đã có lỗi xảy ra khi đăng ký");
+      console.error("❌ Registration update error:", error);
+      const errorMessage = error.message || "Đã có lỗi xảy ra khi cập nhật đăng ký";
+      
+      if (errorMessage.includes("pending")) {
+        Alert.alert(
+          "Thông báo", 
+          "Đăng ký này đã được xử lý trước đó. Vui lòng tải lại để xem trạng thái mới nhất.",
+          [{
+            text: "Tải lại",
+            onPress: () => {
+              setShowConsentModal(false);
+              checkExistingRegistration();
+            }
+          }]
+        );
+      } else {
+        Alert.alert("Lỗi", errorMessage);
+      }
     } finally {
       setIsProcessing(false);
     }

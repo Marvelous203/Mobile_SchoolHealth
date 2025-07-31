@@ -34,13 +34,29 @@ export default function MedicalEventsScreen() {
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [studentCache, setStudentCache] = useState<{[key: string]: any}>({});
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [showStudentSelector, setShowStudentSelector] = useState(false);
   
-  // We will get studentId from current user API instead of params
-  console.log('📋 Medical Events Screen - will use studentId from current user API');
+  // We will use studentId from selected student instead of parentId
+  console.log('📋 Medical Events Screen - will use studentId from selected student');
 
   useEffect(() => {
     loadMedicalEvents(true);
   }, [loadMedicalEvents]);
+
+  // Auto-select first student when user data is loaded
+  useEffect(() => {
+    if (currentUser && currentUser.studentIds && currentUser.studentIds.length > 0 && !selectedStudentId) {
+      setSelectedStudentId(currentUser.studentIds[0]);
+    }
+  }, [currentUser, selectedStudentId]);
+
+  // Reload medical events when student is selected
+  useEffect(() => {
+    if (selectedStudentId) {
+      loadMedicalEvents(true);
+    }
+  }, [selectedStudentId]);
 
   useEffect(() => {
     const delayedSearch = setTimeout(() => {
@@ -74,6 +90,14 @@ export default function MedicalEventsScreen() {
         
         await AsyncStorage.setItem('userData', JSON.stringify(response.data));
         setCurrentUser(response.data);
+        
+        // Fetch student information for all students
+        if (response.data.studentIds && response.data.studentIds.length > 0) {
+          for (const studentId of response.data.studentIds) {
+            fetchStudentInfo(studentId);
+          }
+        }
+        
         return response.data;
       }
       
@@ -135,44 +159,32 @@ export default function MedicalEventsScreen() {
         return;
       }
 
-      // Use first studentId from current user's profile
-      const effectiveStudentId = user.studentIds && user.studentIds.length > 0 ? user.studentIds[0] : undefined;
-      console.log('🔍 Using studentId from current user:', effectiveStudentId, 'user studentIds:', user.studentIds);
+      if (!selectedStudentId) {
+        console.log('⚠️ No student selected yet, waiting...');
+        return;
+      }
 
       const pageToLoad = reset ? 1 : currentPage;
       const searchParams: MedicalEventSearchParams = {
         pageNum: pageToLoad,
         pageSize: 10,
         query: query || searchQuery || undefined,
-        studentId: effectiveStudentId,
+        studentId: selectedStudentId,
       };
       
       console.log('🔍 Medical events search params:', searchParams);
-      console.log('📋 Using studentId from current user API:', effectiveStudentId);
+      console.log('📋 Using studentId from selected student:', selectedStudentId);
 
       const response = await api.searchMedicalEvents(searchParams);
 
       if (response.pageData) {
-        // Fetch thông tin học sinh cho từng medical event
-        const eventsWithStudentInfo = await Promise.all(
-          response.pageData.map(async (event: MedicalEvent) => {
-            if (event.studentId) {
-              const studentInfo = await fetchStudentInfo(event.studentId);
-              return {
-                ...event,
-                studentInfo
-              };
-            }
-            return event;
-          })
-        );
-        
+        // API đã trả về đầy đủ thông tin student, không cần fetch thêm
         if (reset) {
-          setMedicalEvents(eventsWithStudentInfo);
+          setMedicalEvents(response.pageData);
         } else {
           // Prevent duplicates by filtering out existing items
           const existingIds = new Set(medicalEvents.map((item) => item._id));
-          const newItems = eventsWithStudentInfo.filter(
+          const newItems = response.pageData.filter(
             (item) => !existingIds.has(item._id)
           );
           setMedicalEvents((prev) => [...prev, ...newItems]);
@@ -183,12 +195,25 @@ export default function MedicalEventsScreen() {
       }
     } catch (error: any) {
       console.error("❌ Load medical events error:", error);
-      Alert.alert("Lỗi", error.message || "Không thể tải sự kiện y tế");
+      Alert.alert("Lỗi", error.message || "Không thể tải Sự cố y tế");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [currentUser, searchQuery, studentCache]);
+  }, [currentUser, searchQuery, studentCache, selectedStudentId]);
+
+  // Handle student selection
+  const handleStudentSelect = (studentId: string) => {
+    setSelectedStudentId(studentId);
+    setShowStudentSelector(false);
+    setCurrentPage(1);
+  };
+
+  // Get student info for display
+  const getSelectedStudentInfo = () => {
+    if (!selectedStudentId || !currentUser) return null;
+    return studentCache[selectedStudentId] || { fullName: 'Đang tải...', studentCode: '' };
+  };
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -224,12 +249,12 @@ export default function MedicalEventsScreen() {
   };
 
   const getSeverityColor = (severityLevel: string) => {
-    switch (severityLevel?.toLowerCase()) {
-      case 'critical':
+    switch (severityLevel) {
+      case 'Critical':
         return "#ff4d4f";
-      case 'moderate':
+      case 'Moderate':
         return "#fa8c16";
-      case 'mild':
+      case 'Mild':
         return "#52c41a";
       default:
         return "#8c8c8c";
@@ -237,60 +262,72 @@ export default function MedicalEventsScreen() {
   };
 
   const getSeverityText = (severityLevel: string) => {
-    switch (severityLevel?.toLowerCase()) {
-      case 'critical':
+    if (!severityLevel) {
+      console.warn('⚠️ Medical event severityLevel is null/undefined');
+      return "Chưa phân loại";
+    }
+    
+    switch (severityLevel) {
+      case 'Critical':
         return "Nghiêm trọng";
-      case 'moderate':
+      case 'Moderate':
         return "Trung bình";
-      case 'mild':
+      case 'Mild':
         return "Nhẹ";
       default:
-        return "Không xác định";
+        console.warn('⚠️ Unknown severity level:', severityLevel);
+        return `Mức độ: ${severityLevel}`;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
+      case 'treated':
+        return "#52c41a";
       case 'monitoring':
         return "#1890ff";
       case 'transferred':
         return "#fa8c16";
-      case 'resolved':
-        return "#52c41a";
-      case 'pending':
-        return "#faad14";
       default:
         return "#8c8c8c";
     }
   };
 
   const getStatusText = (status: string) => {
+    if (!status) {
+      console.warn('⚠️ Medical event status is null/undefined');
+      return "Chưa cập nhật";
+    }
+    
     switch (status?.toLowerCase()) {
+      case 'treated':
+        return "Đã điều trị";
       case 'monitoring':
         return "Đang theo dõi";
       case 'transferred':
         return "Đã chuyển viện";
-      case 'resolved':
-        return "Đã giải quyết";
-      case 'pending':
-        return "Chờ xử lý";
       default:
-        return "Không xác định";
+        console.warn('⚠️ Unknown medical event status:', status);
+        return `Trạng thái: ${status}`;
     }
   };
 
   const getLeaveMethodText = (leaveMethod: string) => {
+    if (!leaveMethod) {
+      console.warn('⚠️ Medical event leaveMethod is null/undefined');
+      return "Chưa xác định";
+    }
+    
     switch (leaveMethod?.toLowerCase()) {
       case 'parent_pickup':
         return "Phụ huynh đón";
-      case 'ambulance':
-        return "Xe cứu thương";
-      case 'self_discharge':
-        return "Tự về";
+      case 'hospital_transfer':
+        return "Chuyển viện";
       case 'none':
         return "Không rời khỏi trường";
       default:
-        return "Không xác định";
+        console.warn('⚠️ Unknown leave method:', leaveMethod);
+        return `Phương thức: ${leaveMethod}`;
     }
   };
 
@@ -321,21 +358,23 @@ export default function MedicalEventsScreen() {
               />
               <Text style={styles.eventName}>{item.eventName}</Text>
             </View>
-            <View
-              style={[
-                styles.severityBadge,
-                { backgroundColor: getSeverityColor(item.severityLevel) + "20" },
-              ]}
-            >
-              <Text
+            {item.severityLevel && (
+              <View
                 style={[
-                  styles.severityText,
-                  { color: getSeverityColor(item.severityLevel) },
+                  styles.severityBadge,
+                  { backgroundColor: getSeverityColor(item.severityLevel) + "20" },
                 ]}
               >
-                {getSeverityText(item.severityLevel)}
-              </Text>
-            </View>
+                <Text
+                  style={[
+                    styles.severityText,
+                    { color: getSeverityColor(item.severityLevel) },
+                  ]}
+                >
+                  {getSeverityText(item.severityLevel)}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Status và Leave Method */}
@@ -360,16 +399,11 @@ export default function MedicalEventsScreen() {
           <View style={styles.studentInfo}>
             <FontAwesome5 name="user-graduate" size={14} color="#1890ff" />
             <Text style={styles.studentName}>
-              {(item as any).studentInfo?.fullName || item.student?.fullName || "N/A"}
+              {item.student?.fullName || "N/A"}
             </Text>
             <Text style={styles.studentCode}>
-              ({(item as any).studentInfo?.studentCode || item.student?.studentIdCode || "N/A"})
+              ({item.student?.studentIdCode || "N/A"})
             </Text>
-            {(item as any).studentInfo?.classInfo && (
-              <Text style={styles.classInfo}>
-                - {(item as any).studentInfo.classInfo.name}
-              </Text>
-            )}
           </View>
 
           {/* Mô tả sự kiện */}
@@ -390,13 +424,13 @@ export default function MedicalEventsScreen() {
             <View style={styles.infoItem}>
               <FontAwesome5 name="pills" size={12} color="#fa8c16" />
               <Text style={styles.infoText}>
-                {item.medicines?.length || 0} thuốc
+                {item.medicinesUsed?.length || 0} thuốc
               </Text>
             </View>
             <View style={styles.infoItem}>
               <FontAwesome5 name="box" size={12} color="#13c2c2" />
               <Text style={styles.infoText}>
-                {item.medicalSupplies?.length || 0} dụng cụ
+                {item.medicalSuppliesUsed?.length || 0} dụng cụ
               </Text>
             </View>
             <View style={styles.infoItem}>
@@ -453,7 +487,7 @@ export default function MedicalEventsScreen() {
           <View style={styles.headerTitleContainer}>
             <FontAwesome5 name="first-aid" size={24} color="#fff" />
             <View style={styles.headerText}>
-              <Text style={styles.headerTitle}>Sự kiện Y tế</Text>
+              <Text style={styles.headerTitle}>Sự cố y tế</Text>
               <Text style={styles.headerSubtitle}>
                 Lịch sử tai nạn và sự cố
               </Text>
@@ -463,6 +497,61 @@ export default function MedicalEventsScreen() {
           <View style={styles.headerSpacer} />
         </View>
       </LinearGradient>
+
+      {/* Student Selector */}
+      {currentUser && currentUser.studentIds && currentUser.studentIds.length > 1 && (
+        <View style={styles.studentSelectorContainer}>
+          <TouchableOpacity
+            style={styles.studentSelector}
+            onPress={() => setShowStudentSelector(!showStudentSelector)}
+            activeOpacity={0.7}
+          >
+            <FontAwesome5 name="user-graduate" size={16} color="#1890ff" />
+            <Text style={styles.studentSelectorText}>
+              {getSelectedStudentInfo()?.fullName || 'Chọn học sinh'}
+            </Text>
+            <FontAwesome5 
+              name={showStudentSelector ? "chevron-up" : "chevron-down"} 
+              size={12} 
+              color="#8c8c8c" 
+            />
+          </TouchableOpacity>
+          
+          {showStudentSelector && (
+            <View style={styles.studentDropdown}>
+              {currentUser.studentIds.map((studentId: string, index: number) => {
+                const studentInfo = studentCache[studentId];
+                return (
+                  <TouchableOpacity
+                    key={studentId}
+                    style={[
+                      styles.studentOption,
+                      selectedStudentId === studentId && styles.selectedStudentOption
+                    ]}
+                    onPress={() => handleStudentSelect(studentId)}
+                    activeOpacity={0.7}
+                  >
+                    <FontAwesome5 
+                      name="user-graduate" 
+                      size={14} 
+                      color={selectedStudentId === studentId ? "#1890ff" : "#8c8c8c"} 
+                    />
+                    <Text style={[
+                      styles.studentOptionText,
+                      selectedStudentId === studentId && styles.selectedStudentOptionText
+                    ]}>
+                      {studentInfo?.fullName || `Học sinh ${index + 1}`}
+                    </Text>
+                    {selectedStudentId === studentId && (
+                      <FontAwesome5 name="check" size={14} color="#1890ff" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -481,8 +570,6 @@ export default function MedicalEventsScreen() {
             </TouchableOpacity>
           )}
         </View>
-
-
       </View>
     </View>
   );
@@ -491,12 +578,12 @@ export default function MedicalEventsScreen() {
     <View style={styles.emptyContainer}>
       <FontAwesome5 name="first-aid" size={64} color="#d9d9d9" />
       <Text style={styles.emptyTitle}>
-        {searchQuery ? "Không tìm thấy kết quả" : "Chưa có sự kiện y tế"}
+        {searchQuery ? "Không tìm thấy kết quả" : "Chưa có Sự cố y tế"}
       </Text>
       <Text style={styles.emptyText}>
         {searchQuery
           ? "Thử tìm kiếm với từ khóa khác"
-          : "Sự kiện y tế sẽ được hiển thị tại đây"}
+          : "Sự cố y tế sẽ được hiển thị tại đây"}
       </Text>
     </View>
   );
@@ -519,7 +606,7 @@ export default function MedicalEventsScreen() {
       {loading && medicalEvents.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#ff7875" />
-          <Text style={styles.loadingText}>Đang tải sự kiện y tế...</Text>
+          <Text style={styles.loadingText}>Đang tải Sự cố y tế...</Text>
         </View>
       ) : (
         <FlatList
@@ -809,5 +896,61 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#262626",
     lineHeight: 18,
+  },
+  // Student Selector Styles
+  studentSelectorContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    backgroundColor: "#fff",
+  },
+  studentSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0f8ff",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "#d6f7ff",
+  },
+  studentSelectorText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#1890ff",
+    fontWeight: "500",
+  },
+  studentDropdown: {
+    marginTop: 8,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  studentOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f5f5f5",
+  },
+  selectedStudentOption: {
+    backgroundColor: "#f0f8ff",
+  },
+  studentOptionText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#262626",
+  },
+  selectedStudentOptionText: {
+    color: "#1890ff",
+    fontWeight: "500",
   },
 });

@@ -105,7 +105,7 @@ export default function MedicalCheckResultsScreen() {
       const params: MedicalCheckAppointmentSearchParams = {
         pageNum: 1,
         pageSize: 10,
-        // studentId: selectedStudent._id,
+        studentId: selectedStudent._id,
         schoolYear: selectedSchoolYear,
       };
 
@@ -199,7 +199,7 @@ export default function MedicalCheckResultsScreen() {
   };
 
   const renderMedicalCheckResultItem = ({ item }: { item: MedicalCheckAppointment }) => {
-    const healthConfig = getHealthStatusConfig(item.isEligible);
+    const healthConfig = getHealthStatusConfig(item.isHealthy ?? true);
     const postCheckConfig = getPostCheckStatusConfig(item.postMedicalCheckStatus);
 
     return (

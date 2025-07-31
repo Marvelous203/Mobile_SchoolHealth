@@ -7,7 +7,7 @@ export default function MedicalEventsLayout() {
         name="index"
         options={{
           headerShown: false,
-          title: "Sự kiện Y tế",
+          title: "Sự cố y tế",
         }}
       />
       <Stack.Screen

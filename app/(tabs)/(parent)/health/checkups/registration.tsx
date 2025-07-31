@@ -437,21 +437,34 @@ export default function HealthCheckRegistrationPage() {
       return;
     }
 
-      const registrationData = {
-        parentId: currentUserId,
-        studentId: selectedStudent._id,
-        eventId: selectedEvent._id,
-        status: consent ? ("pending" as const) : ("rejected" as const),
-        schoolYear: selectedSchoolYear,
-        ...(consent ? {} : { cancellationReason: rejectionReason }),
-        notes: consent ? "Đồng ý tham gia" : "Không đồng ý tham gia",
-      };
+      // Get automatically created registrations for this event
+      const registrationsResponse = await api.getHealthCheckRegistrationsForEvent(selectedEvent._id);
+      console.log("✅ Retrieved registrations:", registrationsResponse);
 
-      console.log("📝 Submitting registration:", registrationData);
-
-      const response = await api.createHealthCheckRegistration(
-        registrationData
+      // Find the registration for this student
+      const studentRegistration = registrationsResponse.data.find(
+        (reg: any) => reg.studentId === selectedStudent._id
       );
+
+      if (!studentRegistration) {
+        Alert.alert("Lỗi", "Không tìm thấy đăng ký cho học sinh này");
+        return;
+      }
+
+      let response;
+      if (consent) {
+        // Approve the registration
+        response = await api.approveHealthCheckRegistration(studentRegistration._id, {
+          reason: "Đồng ý tham gia khám sức khỏe từ ứng dụng di động"
+        });
+      } else {
+        // Reject the registration
+        response = await api.rejectHealthCheckRegistration(studentRegistration._id, {
+          reason: rejectionReason
+        });
+      }
+
+      console.log("✅ Registration updated:", response);
 
       if (response.success) {
         Alert.alert(
@@ -483,9 +496,9 @@ export default function HealthCheckRegistrationPage() {
   const getStatusText = (status: string): string => {
     switch (status) {
       case "pending":
-        return "Chờ xác nhận";
+        return "Chờ xác nhận từ phụ huynh";
       case "approved":
-        return "Đã duyệt";
+        return "Đã đồng ý - Chờ duyệt";
       case "rejected":
         return "Đã từ chối";
       default:

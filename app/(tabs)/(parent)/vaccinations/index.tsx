@@ -85,7 +85,7 @@ export default function VaccinationsScreen() {
   const [vaccineRegistrations, setVaccineRegistrations] = useState<VaccineRegistrationDetail[]>([])
   const [registrationCurrentPage, setRegistrationCurrentPage] = useState<number>(1)
   const [registrationTotalPages, setRegistrationTotalPages] = useState<number>(1)
-  const [selectedRegistrationStatus, setSelectedRegistrationStatus] = useState<"pending" | "approved" | "rejected" | "all">("all")
+  const [selectedRegistrationStatus, setSelectedRegistrationStatus] = useState<"pending" | "approved" | "rejected" | "expired" | "all">("all")
   const [eventDetails, setEventDetails] = useState<{[key: string]: any}>({})
   const [eventsCache, setEventsCache] = useState<{[key: string]: VaccineEvent}>({})
   const router = useRouter()
@@ -433,6 +433,13 @@ export default function VaccinationsScreen() {
             text: "Từ chối",
             icon: "close-circle-outline",
           }
+        case "expired":
+          return {
+            color: "#f97316",
+            bgColor: "#fff7ed",
+            text: "Hết hạn",
+            icon: "alert-circle-outline",
+          }
         default:
           return {
             color: "#6b7280",
@@ -561,6 +568,7 @@ export default function VaccinationsScreen() {
       { key: "pending", label: "Chờ duyệt", icon: "time-outline" },
       { key: "approved", label: "Đã duyệt", icon: "checkmark-circle-outline" },
       { key: "rejected", label: "Từ chối", icon: "close-circle-outline" },
+      { key: "expired", label: "Hết hạn", icon: "alert-circle-outline" },
     ]
 
     const handleFilterChange = async (newStatus: string) => {
@@ -966,13 +974,15 @@ export default function VaccinationsScreen() {
         {renderStudentSelection()}
 
         <View style={styles.modernTabContainer}>
-          {renderTabButton("events", "Sự kiện", "calendar-outline", vaccineEvents.length)}
+          {/* Hide event count since events are hidden */}
+          {/* {renderTabButton("events", "Sự kiện", "calendar-outline")} */}
           {renderTabButton("registrations", "Đăng ký", "document-text-outline", vaccineRegistrations.length)}
           {renderTabButton("history", "Lịch sử", "time-outline", vaccinationHistory.length)}
         </View>
 
         <View style={styles.modernContent}>
-          {activeTab === "events" && (
+          {/* COMMENTED OUT - Event display section */}
+          {/* {activeTab === "events" && (
             <View style={styles.eventsContainer}>
               {vaccineEvents.length > 0 ? (
                 <View style={styles.modernSection}>
@@ -1009,6 +1019,17 @@ export default function VaccinationsScreen() {
               ) : (
                 <EmptyEvents />
               )}
+            </View>
+          )} */}
+          {activeTab === "events" && (
+            <View style={styles.eventsContainer}>
+              <View style={styles.modernEmptyState}>
+                <View style={styles.emptyIconContainer}>
+                  <Ionicons name="calendar-outline" size={48} color="#6366f1" />
+                </View>
+                <Text style={styles.emptyTitle}>Chức năng hiển thị sự kiện đã được ẩn</Text>
+                <Text style={styles.emptySubtitle}>Chỉ hiển thị phần đăng ký tiêm chủng</Text>
+              </View>
             </View>
           )}
 
@@ -1065,7 +1086,7 @@ export default function VaccinationsScreen() {
                   <Text style={styles.emptyTitle}>
                     {selectedRegistrationStatus === "all" 
                       ? "Chưa có đăng ký tiêm chủng" 
-                      : `Chưa có đăng ký ${selectedRegistrationStatus === "pending" ? "chờ duyệt" : selectedRegistrationStatus === "approved" ? "đã duyệt" : "bị từ chối"}`
+                      : `Chưa có đăng ký ${selectedRegistrationStatus === "pending" ? "chờ duyệt" : selectedRegistrationStatus === "approved" ? "đã duyệt" : selectedRegistrationStatus === "rejected" ? "bị từ chối" : selectedRegistrationStatus === "expired" ? "hết hạn" : "không xác định"}`
                     }
                   </Text>
                   <Text style={styles.emptySubtitle}>

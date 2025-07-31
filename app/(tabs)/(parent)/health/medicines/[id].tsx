@@ -159,7 +159,16 @@ export default function MedicineSubmissionDetailScreen() {
     if (!timeShifts || !Array.isArray(timeShifts)) {
       return 'N/A'
     }
-    return timeShifts.map(shift => getShiftDisplayName(shift)).join(', ')
+    
+    // Định nghĩa thứ tự ưu tiên cho các ca
+    const shiftOrder = { 'morning': 1, 'afternoon': 2, 'evening': 3 }
+    
+    // Sắp xếp theo thứ tự đúng: sáng, trưa, chiều
+    const sortedShifts = [...timeShifts].sort((a, b) => {
+      return (shiftOrder[a as keyof typeof shiftOrder] || 999) - (shiftOrder[b as keyof typeof shiftOrder] || 999)
+    })
+    
+    return sortedShifts.map(shift => getShiftDisplayName(shift)).join(', ')
   }
 
   const formatSlotTime = (timeString: string) => {
@@ -178,8 +187,8 @@ export default function MedicineSubmissionDetailScreen() {
   const getShiftDisplayName = (shift: string) => {
     switch (shift) {
       case 'morning': return 'Sáng'
-      case 'noon': return 'Trưa'
-      case 'evening': return 'Tối'
+      case 'afternoon': return 'Trưa'
+      case 'evening': return 'Chiều'
       default: return shift
     }
   }
@@ -189,10 +198,18 @@ export default function MedicineSubmissionDetailScreen() {
       return null
     }
 
+    // Định nghĩa thứ tự ưu tiên cho các ca
+    const shiftOrder = { 'morning': 1, 'afternoon': 2, 'evening': 3 }
+    
+    // Sắp xếp slotStatus theo thứ tự đúng: sáng, trưa, chiều
+    const sortedSlotStatus = [...slotStatus].sort((a, b) => {
+      return (shiftOrder[a.shift as keyof typeof shiftOrder] || 999) - (shiftOrder[b.shift as keyof typeof shiftOrder] || 999)
+    })
+
     return (
       <View style={styles.slotStatusContainer}>
         <Text style={styles.slotStatusTitle}>Trạng thái uống thuốc:</Text>
-        {slotStatus.map((slot, index) => (
+        {sortedSlotStatus.map((slot, index) => (
           <View key={slot._id || index} style={styles.slotStatusCard}>
             <View style={styles.slotStatusHeader}>
               <View style={styles.slotTimeContainer}>
@@ -443,6 +460,38 @@ export default function MedicineSubmissionDetailScreen() {
               <Text style={styles.infoValue}>Không có dữ liệu thuốc</Text>
             </View>
           )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Thông tin ca gửi thuốc</Text>
+          <View style={styles.infoCard}>
+            {submission.shiftSendMedicine && (
+              <View style={styles.infoRow}>
+                <Ionicons name="time-outline" size={20} color="#666" />
+                <Text style={styles.infoLabel}>Ca gửi:</Text>
+                <Text style={styles.infoValue}>{formatTimeShifts([submission.shiftSendMedicine])}</Text>
+              </View>
+            )}
+            {submission.image && (
+              <View style={styles.infoRow}>
+                <Ionicons name="image-outline" size={20} color="#666" />
+                <Text style={styles.infoLabel}>Đơn thuốc:</Text>
+                <TouchableOpacity 
+                  style={styles.prescriptionImageContainer}
+                  onPress={() => setSelectedImage(submission.image)}
+                >
+                  <Image 
+                    source={{ uri: submission.image }} 
+                    style={styles.prescriptionImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.imageOverlay}>
+                    <Ionicons name="eye" size={20} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -793,5 +842,16 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 8,
+  },
+  prescriptionImageContainer: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+    marginLeft: 8,
+  },
+  prescriptionImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
   },
 })

@@ -28,7 +28,7 @@ interface VaccineRegistrationDetail {
   studentId: string
   parentId: string
   eventId: string
-  status: "pending" | "approved" | "rejected"
+  status: "pending" | "approved" | "rejected" | "expired"
   student?: {
     _id: string
     fullName: string
@@ -156,6 +156,77 @@ export default function VaccineRegistrationDetailScreen() {
     } catch (error: any) {
       console.error("❌ Cancellation error:", error)
       Alert.alert("Lỗi", "Không thể hủy đăng ký. Vui lòng thử lại.")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleUpdateRegistration = async (newStatus: "approved" | "rejected") => {
+    if (!registrationData) {
+      Alert.alert("Lỗi", "Không tìm thấy đăng ký")
+      return
+    }
+
+    // Check if registration is still in pending status
+    if (registrationData.status !== "pending") {
+      Alert.alert(
+        "Thông báo", 
+        "Đăng ký này đã được xử lý. Vui lòng tải lại trang để xem trạng thái mới nhất.",
+        [{
+          text: "Tải lại",
+          onPress: () => loadInitialData()
+        }]
+      )
+      return
+    }
+
+    try {
+      setIsProcessing(true)
+      
+      let response
+      if (newStatus === "approved") {
+        response = await api.updateVaccineRegistrationStatus(registrationData._id, {
+          status: "approved",
+          notes: "Đồng ý đăng ký tiêm chủng từ ứng dụng di động"
+        })
+      } else {
+        response = await api.updateVaccineRegistrationStatus(registrationData._id, {
+          status: "rejected",
+          cancellationReason: cancellationReason || "Từ chối đăng ký tiêm chủng từ ứng dụng di động"
+        })
+      }
+
+      // Check if response is successful (API returns the updated registration object directly)
+      if (response && (response._id || response.id)) {
+        Alert.alert(
+          "Thành công", 
+          newStatus === "approved" ? "Đã đồng ý tham gia tiêm chủng" : "Đã từ chối tham gia tiêm chủng",
+          [{
+            text: "OK",
+            onPress: () => {
+              loadInitialData() // Reload data to show updated status
+            }
+          }]
+        )
+      } else {
+        throw new Error("Không thể cập nhật đăng ký")
+      }
+    } catch (error: any) {
+      console.error("❌ Update registration error:", error)
+      const errorMessage = error.message || "Không thể cập nhật đăng ký. Vui lòng thử lại."
+      
+      if (errorMessage.includes("pending")) {
+        Alert.alert(
+          "Thông báo", 
+          "Đăng ký này đã được xử lý trước đó. Vui lòng tải lại để xem trạng thái mới nhất.",
+          [{
+            text: "Tải lại",
+            onPress: () => loadInitialData()
+          }]
+        )
+      } else {
+        Alert.alert("Lỗi", errorMessage)
+      }
     } finally {
       setIsProcessing(false)
     }
@@ -314,14 +385,14 @@ export default function VaccineRegistrationDetailScreen() {
         return {
           color: "#f59e0b",
           bgColor: "#fffbeb",
-          text: "Chờ duyệt",
+          text: "Chờ xác nhận từ phụ huynh",
           icon: "time-outline",
         }
       case "approved":
         return {
           color: "#10b981",
           bgColor: "#f0fdf4",
-          text: "Đã duyệt",
+          text: "Đã đồng ý - Chờ duyệt",
           icon: "checkmark-circle",
         }
       case "rejected":
@@ -330,6 +401,13 @@ export default function VaccineRegistrationDetailScreen() {
           bgColor: "#fef2f2",
           text: "Đã từ chối",
           icon: "close-circle",
+        }
+      case "expired":
+        return {
+          color: "#9ca3af",
+          bgColor: "#f3f4f6",
+          text: "Hết hạn",
+          icon: "time",
         }
       default:
         return {
@@ -703,26 +781,45 @@ export default function VaccineRegistrationDetailScreen() {
       {/* Fixed Bottom Action */}
       <View style={styles.modernFooter}>
         {registrationData.status === "pending" ? (
-          <TouchableOpacity style={styles.modernCancelButton} onPress={handleCancelRegistration} activeOpacity={0.7}>
-            <LinearGradient colors={["#ef4444", "#dc2626"]} style={styles.cancelButtonGradient}>
-              <Ionicons name="close-circle-outline" size={24} color="#fff" />
-              <Text style={styles.modernCancelButtonText}>Hủy đăng ký</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+          <View style={styles.statusActions}>
+            <Text style={styles.statusDescription}>
+              Vui lòng xác nhận đồng ý hoặc từ chối tham gia tiêm chủng
+            </Text>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.approveButton]} 
+                onPress={() => handleUpdateRegistration("approved")}
+                disabled={isProcessing}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                <Text style={styles.approveButtonText}>Đồng ý</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.rejectButton]} 
+                onPress={() => handleUpdateRegistration("rejected")}
+                disabled={isProcessing}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close-circle" size={20} color="#fff" />
+                <Text style={styles.rejectButtonText}>Từ chối</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         ) : (
           <View style={styles.modernStatusFooter}>
             <View style={styles.statusFooterContent}>
               <View style={[styles.modernStatusIndicator, { backgroundColor: statusConfig.color }]} />
               <Text style={styles.modernStatusFooterText}>
-                {registrationData.status === "approved" ? "Đăng ký đã được phê duyệt" : "Đăng ký đã bị từ chối"}
+                {registrationData.status === "approved" 
+                  ? "Đăng ký đã được phê duyệt" 
+                  : registrationData.status === "rejected"
+                    ? "Đăng ký đã bị từ chối"
+                    : registrationData.status === "expired"
+                      ? "Đăng ký đã hết hạn do quá thời gian xác nhận"
+                      : "Trạng thái không xác định"}
               </Text>
             </View>
-            {/* {registrationData.status === "approved" && (
-              <TouchableOpacity style={styles.calendarButton} activeOpacity={0.7}>
-                <Ionicons name="calendar-outline" size={16} color="#6366f1" />
-                <Text style={styles.calendarButtonText}>Thêm lịch</Text>
-              </TouchableOpacity>
-            )} */}
           </View>
         )}
       </View>
@@ -1270,13 +1367,54 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingBottom: 32,
     borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
+    borderTopColor: "#e5e7eb",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 8,
+  },
+  statusActions: {
+    alignItems: "center",
+  },
+  statusDescription: {
+    fontSize: 14,
+    color: "#6b7280",
+    textAlign: "center",
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  approveButton: {
+    backgroundColor: "#10b981",
+  },
+  rejectButton: {
+    backgroundColor: "#ef4444",
+  },
+  approveButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  rejectButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
   modernCancelButton: {
     borderRadius: 20,

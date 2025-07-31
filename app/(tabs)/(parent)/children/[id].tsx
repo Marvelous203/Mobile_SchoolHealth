@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import { useAuth, checkUserPermission, showPermissionDeniedAlert } from "@/lib/auth";
+import { checkUserPermission, showPermissionDeniedAlert, useAuth } from "@/lib/auth";
 import { HealthRecord } from "@/lib/types";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -8,18 +8,18 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -241,7 +241,7 @@ export default function StudentDetail() {
       },
     },
     {
-      title: "Sự kiện y tế",
+      title: "Sự cố y tế",
       icon: "exclamation-triangle",
       colors: ["#f093fb", "#f5576c"],
       onPress: () => {
