@@ -1,4 +1,5 @@
 import { api, getCurrentUserId } from "@/lib/api";
+import { checkUserPermission, useAuth } from "@/lib/auth";
 import type { HealthRecord, HealthRecordSearchParams } from "@/lib/types";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,6 +23,7 @@ import {
 const { width } = Dimensions.get("window");
 
 export default function HealthRecordsScreen() {
+  const { user } = useAuth();
   const [healthRecords, setHealthRecords] = useState<HealthRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -429,17 +431,21 @@ export default function HealthRecordsScreen() {
               <Text style={styles.headerSubtitle}>Hồ sơ y tế con em</Text>
             </View>
           </View>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => router.push("/(tabs)/(parent)/health/create-record")}
-          >
-            <LinearGradient
-              colors={["#4facfe", "#00f2fe"]}
-              style={styles.addButtonGradient}
+          {checkUserPermission(user) ? (
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => router.push("/(tabs)/(parent)/health/create-record")}
             >
-              <FontAwesome5 name="plus" size={18} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={["#4facfe", "#00f2fe"]}
+                style={styles.addButtonGradient}
+              >
+                <FontAwesome5 name="plus" size={18} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.addButton} />
+          )}
         </View>
 
         {/* Search Bar */}
@@ -472,18 +478,22 @@ export default function HealthRecordsScreen() {
         <Text style={styles.emptySubtitle}>
           Chưa có hồ sơ sức khỏe nào được tạo
         </Text>
-        <TouchableOpacity
-          style={styles.createFirstButton}
-          onPress={() => router.push("/(tabs)/(parent)/health/records/create")}
-        >
-          <LinearGradient
-            colors={["#4facfe", "#00f2fe"]}
-            style={styles.createFirstButtonGradient}
+        {checkUserPermission(user) ? (
+          <TouchableOpacity
+            style={styles.createFirstButton}
+            onPress={() => router.push("/(tabs)/(parent)/health/records/create")}
           >
-            <FontAwesome5 name="plus" size={16} color="#fff" />
-            <Text style={styles.createFirstButtonText}>Tạo hồ sơ đầu tiên</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={["#4facfe", "#00f2fe"]}
+              style={styles.createFirstButtonGradient}
+            >
+              <FontAwesome5 name="plus" size={16} color="#fff" />
+              <Text style={styles.createFirstButtonText}>Tạo hồ sơ đầu tiên</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.viewOnlyText}>Chỉ được phép xem</Text>
+        )}
       </View>
     </View>
   );
@@ -581,12 +591,16 @@ export default function HealthRecordsScreen() {
             <MaterialIcons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Hồ sơ sức khỏe</Text>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => router.push('/health/records/create')}
-          >
-            <MaterialIcons name="add" size={24} color="#1890ff" />
-          </TouchableOpacity>
+          {checkUserPermission(user) ? (
+            <TouchableOpacity 
+              style={styles.addButton}
+              onPress={() => router.push('/health/records/create')}
+            >
+              <MaterialIcons name="add" size={24} color="#1890ff" />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.addButton} />
+          )}
         </View>
         
         {/* Search bar skeleton */}
@@ -612,12 +626,16 @@ export default function HealthRecordsScreen() {
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Hồ sơ sức khỏe</Text>
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => router.push('/health/records/create')}
-        >
-          <MaterialIcons name="add" size={24} color="#1890ff" />
-        </TouchableOpacity>
+        {checkUserPermission(user) ? (
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => router.push('/health/records/create')}
+          >
+            <MaterialIcons name="add" size={24} color="#1890ff" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.addButton} />
+        )}
       </View>
       
       {/* Search bar */}
@@ -978,5 +996,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#e0e0e0",
     marginLeft: 8,
+  },
+  viewOnlyText: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    fontStyle: "italic",
+    marginTop: 16,
   },
 });

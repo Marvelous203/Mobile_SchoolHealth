@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   RefreshControl,
   StyleSheet,
   Text,
@@ -25,6 +26,8 @@ interface ApiBlog {
   createdAt: string;
   updatedAt: string;
   isDeleted: boolean;
+  banner?: string;
+  image?: string;
 }
 
 interface ApiBlogSearchResponse {
@@ -118,22 +121,32 @@ export default function BlogsScreen() {
       style={styles.blogCard}
       onPress={() => router.push(`/(tabs)/(parent)/blogs/${item._id}`)}
     >
-      <View style={styles.blogHeader}>
-        <Text style={styles.blogTitle} numberOfLines={2}>{item.title}</Text>
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{item.categoryName || 'Chưa phân loại'}</Text>
+      {/* Banner Image */}
+      {item.banner && (
+        <Image 
+          source={{ uri: item.banner }}
+          style={styles.bannerImage}
+          resizeMode="cover"
+        />
+      )}
+      
+      <View style={styles.blogContentContainer}>
+        <View style={styles.blogHeader}>
+          <Text style={styles.blogTitle} numberOfLines={2}>{item.title}</Text>
+          <View style={styles.categoryBadge}>
+            <Text style={styles.categoryText}>{item.categoryName || 'Chưa phân loại'}</Text>
+          </View>
         </View>
-      </View>
-      
-      <Text style={styles.blogDescription} numberOfLines={3}>
-        {item.description || stripHtml(item.content)}
-      </Text>
-      
-      <Text style={styles.blogContent} numberOfLines={2}>
-        {stripHtml(item.content)}
-      </Text>
-      
-      <View style={styles.blogFooter}>
+        
+        <Text style={styles.blogDescription} numberOfLines={3}>
+          {item.description || stripHtml(item.content)}
+        </Text>
+        
+        <Text style={styles.blogContent} numberOfLines={2}>
+          {stripHtml(item.content)}
+        </Text>
+        
+        <View style={styles.blogFooter}>
         <View style={styles.authorInfo}>
           <Ionicons name="person-circle" size={16} color="#666" />
           <Text style={styles.authorName}>Tác giả</Text>
@@ -146,6 +159,7 @@ export default function BlogsScreen() {
           </View>
           <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
         </View>
+      </View>
       </View>
     </TouchableOpacity>
   );
@@ -277,7 +291,7 @@ const styles = StyleSheet.create({
   blogCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
+    padding: 0,
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: {
@@ -287,6 +301,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+    overflow: 'hidden',
+  },
+  bannerImage: {
+    width: '100%',
+    height: 200,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  blogContentContainer: {
+    padding: 16,
   },
   blogHeader: {
     flexDirection: 'row',

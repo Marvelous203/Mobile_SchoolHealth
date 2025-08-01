@@ -527,11 +527,11 @@ export default function HealthRecordDetailScreen() {
                      </Text>
                    )}
                    
-                   {dateAdministered && (
+                   {/* {dateAdministered && (
                      <Text style={[styles.listItemText, { fontSize: 12, color: '#8c8c8c', marginTop: 2 }]}>
                        Ngày tiêm: {new Date(dateAdministered).toLocaleDateString('vi-VN')}
                      </Text>
-                   )}
+                   )} */}
                    {provider && (
                      <Text style={[styles.listItemText, { fontSize: 12, color: '#8c8c8c', marginTop: 2 }]}>
                        Nơi tiêm: {provider}

@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { checkUserPermission, useAuth } from "@/lib/auth";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -19,17 +20,77 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get('window');
 
+// Interface definitions
+interface Student {
+  _id: string;
+  fullName: string;
+  studentCode?: string;
+  studentIdCode?: string;
+  gender?: 'male' | 'female';
+  dob?: string;
+  classId?: string;
+  status?: 'active' | 'graduated' | 'transferred' | 'reserved';
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface HealthCheckEvent {
+  _id: string;
+  name: string;
+  description?: string;
+  provider?: string;
+  gradeId?: string;
+  schoolYear: string;
+  eventDate: string;
+  startRegistrationDate: string;
+  endRegistrationDate: string;
+  status?: 'upcoming' | 'ongoing' | 'completed';
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Parent {
+  _id: string;
+  fullName: string;
+  email: string;
+  phone?: string;
+  role: string;
+  fullPermission: boolean;
+  studentIds?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface HealthCheckRegistration {
+  _id: string;
+  studentId: string;
+  parentId: string;
+  eventId: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  notes?: string;
+  note?: string;
+  cancellationReason?: string;
+  student?: Student;
+  parent?: Parent;
+  event?: HealthCheckEvent;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function RegistrationDetailScreen() {
   const router = useRouter();
+  const { user, refreshUserProfile } = useAuth();
   const { registrationId } = useLocalSearchParams<{ registrationId: string }>();
   
   const [isLoading, setIsLoading] = useState(true);
-  const [registration, setRegistration] = useState<any>(null);
+  const [registration, setRegistration] = useState<HealthCheckRegistration | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showActionButtons, setShowActionButtons] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [gradeName, setGradeName] = useState<string>("");
+  const [className, setClassName] = useState<string>("");
   const fadeAnim = new Animated.Value(1);
   const slideAnim = new Animated.Value(0);
 
@@ -38,6 +99,41 @@ export default function RegistrationDetailScreen() {
       loadRegistrationDetail();
     }
   }, [registrationId]);
+  
+  // Refresh user profile to get fullPermission
+  useEffect(() => {
+    if (user && user.fullPermission === undefined) {
+      refreshUserProfile();
+    }
+  }, [user, refreshUserProfile]);
+
+  const loadGradeName = async (gradeId: string) => {
+    try {
+      const response = await api.searchGrades({ pageNum: 1, pageSize: 50 });
+      if (response.pageData) {
+        const grade = response.pageData.find((g: any) => g._id === gradeId);
+        if (grade) {
+          setGradeName(grade.name);
+        }
+      }
+    } catch (error) {
+      console.error("❌ Load grade name error:", error);
+    }
+  };
+
+  const loadClassName = async (classId: string) => {
+    try {
+      const response = await api.searchClasses({ pageNum: 1, pageSize: 100 });
+      if (response.pageData) {
+        const classItem = response.pageData.find((c: any) => c._id === classId);
+        if (classItem) {
+          setClassName(classItem.name);
+        }
+      }
+    } catch (error) {
+      console.error("❌ Load class name error:", error);
+    }
+  };
 
   const loadRegistrationDetail = async () => {
     try {
@@ -46,6 +142,16 @@ export default function RegistrationDetailScreen() {
       console.log("✅ Registration detail response:", JSON.stringify(response.data, null, 2));
       console.log("✅ Student data:", JSON.stringify(response.data.student, null, 2));
       setRegistration(response.data);
+      
+      // Load grade name if gradeId exists
+      if (response.data?.event?.gradeId) {
+        await loadGradeName(response.data.event.gradeId);
+      }
+      
+      // Load class name if classId exists
+      if (response.data?.student?.classId) {
+        await loadClassName(response.data.student.classId);
+      }
       
       // Content is immediately visible
       fadeAnim.setValue(1);
@@ -125,6 +231,27 @@ export default function RegistrationDetailScreen() {
       age--;
     }
     return age;
+  };
+
+  // Helper function to check if user can register (both permission and student status)
+  const canUserRegister = () => {
+    // Check user permission first
+    if (!checkUserPermission(user)) {
+      return { canRegister: false, reason: "Chỉ được phép xem" };
+    }
+    
+    // Check student status - only active students can register
+    if (registration?.student?.status !== "active") {
+      const statusMessages = {
+        'graduated': 'Học sinh đã tốt nghiệp',
+        'transferred': 'Học sinh đã chuyển trường',
+        'reserved': 'Học sinh đang bảo lưu'
+      };
+      const reason = statusMessages[registration?.student?.status as keyof typeof statusMessages] || 'Học sinh không còn hoạt động';
+      return { canRegister: false, reason };
+    }
+    
+    return { canRegister: true, reason: "" };
   };
 
   const handleUpdateRegistration = async (newStatus: "approved" | "rejected", reason?: string) => {
@@ -285,10 +412,10 @@ export default function RegistrationDetailScreen() {
                 </View>
               </LinearGradient>
               <View style={styles.statusDetails}>
-                <View style={styles.infoRow}>
+                {/* <View style={styles.infoRow}>
                   <Text style={styles.label}>Mã đăng ký:</Text>
                   <Text style={styles.value}>{registration._id}</Text>
-                </View>
+                </View> */}
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Ngày đăng ký:</Text>
                   <Text style={styles.value}>{formatDateTime(registration.createdAt)}</Text>
@@ -315,10 +442,10 @@ export default function RegistrationDetailScreen() {
                   </View>
                   <Text style={styles.modernSectionTitle}>Thông tin sự kiện khám sức khỏe</Text>
                 </View>
-                <View style={styles.infoRow}>
+                {/* <View style={styles.infoRow}>
                   <Text style={styles.label}>Mã sự kiện:</Text>
                   <Text style={styles.value}>{registration.event._id}</Text>
-                </View>
+                </View> */}
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Tên sự kiện:</Text>
                   <Text style={styles.value}>{registration.event.eventName}</Text>
@@ -339,8 +466,8 @@ export default function RegistrationDetailScreen() {
                 )}
                 {registration.event.gradeId && (
                   <View style={styles.infoRow}>
-                    <Text style={styles.label}>Mã khối lớp:</Text>
-                    <Text style={styles.value}>{registration.event.gradeId}</Text>
+                    <Text style={styles.label}>Khối lớp:</Text>
+                    <Text style={styles.value}>{gradeName || registration.event.gradeId}</Text>
                   </View>
                 )}
                 <View style={styles.infoRow}>
@@ -386,14 +513,14 @@ export default function RegistrationDetailScreen() {
                   </View>
                   <Text style={styles.modernSectionTitle}>Thông tin học sinh</Text>
                 </View>
-                <View style={styles.infoRow}>
+                {/* <View style={styles.infoRow}>
                   <Text style={styles.label}>Mã học sinh:</Text>
                   <Text style={styles.value}>{registration.student._id}</Text>
-                </View>
-                <View style={styles.infoRow}>
+                </View> */}
+                {/* <View style={styles.infoRow}>
                   <Text style={styles.label}>Mã số học sinh:</Text>
                   <Text style={styles.value}>{registration.student.studentCode}</Text>
-                </View>
+                </View> */}
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Mã định danh:</Text>
                   <Text style={styles.value}>{registration.student.studentIdCode}</Text>
@@ -422,13 +549,18 @@ export default function RegistrationDetailScreen() {
                 )}
                 {registration.student.classId && (
                   <View style={styles.infoRow}>
-                    <Text style={styles.label}>Mã lớp học:</Text>
-                    <Text style={styles.value}>{registration.student.classId}</Text>
+                    <Text style={styles.label}>Lớp học:</Text>
+                    <Text style={styles.value}>{className || registration.student.classId}</Text>
                   </View>
                 )}
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Trạng thái học sinh:</Text>
-                  <Text style={styles.value}>{registration.student.status === 'active' ? 'Đang học' : 'Không hoạt động'}</Text>
+                  <Text style={[styles.value, { color: registration.student.status === 'active' ? '#52c41a' : '#ff4d4f' }]}>
+                    {registration.student.status === 'active' ? 'Đang học' :
+                     registration.student.status === 'graduated' ? 'Đã tốt nghiệp' :
+                     registration.student.status === 'transferred' ? 'Đã chuyển trường' :
+                     registration.student.status === 'reserved' ? 'Đang bảo lưu' : 'Không xác định'}
+                  </Text>
                 </View>
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Ngày tạo hồ sơ:</Text>
@@ -450,10 +582,10 @@ export default function RegistrationDetailScreen() {
                   </View>
                   <Text style={styles.modernSectionTitle}>Thông tin phụ huynh</Text>
                 </View>
-                <View style={styles.infoRow}>
+                {/* <View style={styles.infoRow}>
                   <Text style={styles.label}>Mã phụ huynh:</Text>
                   <Text style={styles.value}>{registration.parent._id}</Text>
-                </View>
+                </View> */} 
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Họ và tên:</Text>
                   <Text style={styles.value}>{registration.parent.fullName}</Text>
@@ -541,22 +673,31 @@ export default function RegistrationDetailScreen() {
                 <Text style={styles.actionDescription}>
                   Vui lòng xác nhận đồng ý hoặc từ chối cho con em tham gia chương trình khám sức khỏe
                 </Text>
-                <TouchableOpacity 
-                  style={[styles.modernActionButton, isProcessing && styles.disabledButton]} 
-                  onPress={() => setShowConfirmModal(true)}
-                  disabled={isProcessing}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2']}
-                    style={styles.buttonGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <Ionicons name="checkmark-done" size={22} color="#fff" />
-                    <Text style={styles.modernButtonText}>Xác nhận tham gia</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                {(() => {
+                  const { canRegister, reason } = canUserRegister();
+                  return canRegister ? (
+                    <TouchableOpacity 
+                      style={[styles.modernActionButton, isProcessing && styles.disabledButton]} 
+                      onPress={() => setShowConfirmModal(true)}
+                      disabled={isProcessing}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={['#667eea', '#764ba2']}
+                        style={styles.buttonGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      >
+                        <Ionicons name="checkmark-done" size={22} color="#fff" />
+                        <Text style={styles.modernButtonText}>Xác nhận tham gia</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.viewOnlyContainer}>
+                      <Text style={styles.viewOnlyText}>{reason}</Text>
+                    </View>
+                  );
+                })()}
               </View>
             )}
           </>
@@ -1123,5 +1264,21 @@ const styles = StyleSheet.create({
      backgroundColor: '#f8fafc',
      minHeight: 100,
      maxHeight: 150,
+   },
+   viewOnlyContainer: {
+     backgroundColor: '#f8fafc',
+     borderRadius: 12,
+     paddingVertical: 16,
+     paddingHorizontal: 20,
+     marginHorizontal: 20,
+     marginBottom: 20,
+     borderWidth: 1,
+     borderColor: '#e2e8f0',
+   },
+   viewOnlyText: {
+     fontSize: 16,
+     color: '#64748b',
+     textAlign: 'center',
+     fontStyle: 'italic',
    },
  });

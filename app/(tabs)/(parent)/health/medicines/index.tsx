@@ -1,4 +1,6 @@
+
 import { api } from '@/lib/api'
+import { checkUserPermission, useAuth } from '@/lib/auth'
 import { MedicineSubmission } from '@/lib/types'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -31,6 +33,7 @@ interface MedicineSubmissionWithStudent extends MedicineSubmission {
 }
 
 export default function MedicinesScreen() {
+  const { user } = useAuth()
   const params = useLocalSearchParams()
   const [medicineSubmissions, setMedicineSubmissions] = useState<MedicineSubmissionWithStudent[]>([])
   const [loading, setLoading] = useState(true)
@@ -408,13 +411,19 @@ export default function MedicinesScreen() {
               </Text>
             )}
           </View> */}
-          <TouchableOpacity 
-            style={styles.createButton}
-            onPress={handleCreateMedicine}
-          >
-            <Ionicons name="add" size={24} color="#fff" />
-            <Text style={styles.createButtonText}>Tạo đơn thuốc</Text>
-          </TouchableOpacity>
+          {checkUserPermission(user) ? (
+            <TouchableOpacity 
+              style={styles.createButton}
+              onPress={handleCreateMedicine}
+            >
+              <Ionicons name="add" size={24} color="#fff" />
+              <Text style={styles.createButtonText}>Tạo đơn thuốc</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.viewOnlyContainer}>
+              <Text style={styles.viewOnlyText}>Chỉ được phép xem</Text>
+            </View>
+          )}
         </View>
 
         {/* Thông tin hướng dẫn */}
@@ -519,6 +528,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  viewOnlyContainer: {
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  viewOnlyText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '500',
   },
   infoCard: {
     backgroundColor: '#fff',

@@ -46,6 +46,7 @@ interface Student {
   fullName: string
   classId?: string
   avatar?: string
+  status?: 'active' | 'graduated' | 'transferred' | 'reserved'
 }
 
 interface VaccineRegistration {
@@ -209,6 +210,34 @@ export default function VaccineEventDetailScreen() {
     if (!currentUserId || !studentId || !eventData || !id) {
       Alert.alert("Lỗi", "Thiếu thông tin cần thiết để đăng ký")
       return
+    }
+
+    // Check student status - only active students can register for vaccines
+    // Note: We need to get student data first to check status
+    try {
+      const studentResponse = await api.getStudentProfile(studentId as string)
+      if (studentResponse.success && studentResponse.data) {
+        const studentStatus = studentResponse.data.status
+        if (studentStatus && studentStatus !== 'active') {
+          let statusMessage = "Học sinh không còn hoạt động"
+          switch (studentStatus) {
+            case 'graduated':
+              statusMessage = "Học sinh đã tốt nghiệp"
+              break
+            case 'transferred':
+              statusMessage = "Học sinh đã chuyển trường"
+              break
+            case 'reserved':
+              statusMessage = "Học sinh đang bảo lưu"
+              break
+          }
+          Alert.alert("Không thể đăng ký", `${statusMessage}. Chỉ có thể đăng ký tiêm chủng cho học sinh đang học.`)
+          return
+        }
+      }
+    } catch (error) {
+      console.error("Error checking student status:", error)
+      // Continue with registration if we can't check status
     }
 
     if (typeof studentId !== "string" || studentId === "undefined" || studentId.trim() === "") {
@@ -998,14 +1027,7 @@ export default function VaccineEventDetailScreen() {
                     : "Thời gian đăng ký đã kết thúc vào " + formatDate(eventData?.endRegistrationDate || "")}
                 </Text>
               </View>
-            ) : (
-              <TouchableOpacity style={styles.modernRegisterButton} onPress={handleRegister} activeOpacity={0.7}>
-                <LinearGradient colors={["#6366f1", "#8b5cf6"]} style={styles.registerButtonGradient}>
-                  <Ionicons name="add-circle-outline" size={24} color="#fff" />
-                  <Text style={styles.modernRegisterButtonText}>Đăng ký tham gia</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
+            ) : checkUserPermission(user) ? (              <TouchableOpacity style={styles.modernRegisterButton} onPress={handleRegister} activeOpacity={0.7}>                <LinearGradient colors={["#6366f1", "#8b5cf6"]} style={styles.registerButtonGradient}>                  <Ionicons name="add-circle-outline" size={24} color="#fff" />                  <Text style={styles.modernRegisterButtonText}>Đăng ký tham gia</Text>                </LinearGradient>              </TouchableOpacity>            ) : (              <View style={styles.modernRegistrationStatus}>                <View style={styles.statusHeader}>                  <View style={[styles.modernStatusIndicator, { backgroundColor: "#6b7280" }]} />                  <Text style={styles.modernStatusIndicatorText}>Chỉ được phép xem</Text>                </View>                <Text style={styles.statusDescription}>                  Tài khoản của bạn chỉ có quyền xem thông tin                </Text>              </View>            )}
           </View>
         </View>
       </ScrollView>

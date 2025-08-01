@@ -8,7 +8,7 @@ import {
 } from "@/lib/types";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -33,6 +33,7 @@ interface StudentData {
   avatar: string;
   gender?: string;
   birthday?: string;
+  status?: 'active' | 'graduated' | 'transferred' | 'reserved';
 }
 
 export default function CreateHealthRecordScreen() {
@@ -202,6 +203,9 @@ export default function CreateHealthRecordScreen() {
                   avatar:
                     studentResponse.data.avatar ||
                     "https://example.com/avatar.jpg",
+                  gender: studentResponse.data.gender,
+                  birthday: studentResponse.data.dob,
+                  status: studentResponse.data.status,
                 };
               }
               return null;
@@ -330,26 +334,84 @@ export default function CreateHealthRecordScreen() {
     }
   };
 
+  const formatVision = (input: string): string => {
+    // Remove spaces and convert to lowercase
+    const cleanInput = input.trim();
+    
+    // If input is just a number (e.g., "8"), format as "8/10"
+    if (/^\d+$/.test(cleanInput)) {
+      const num = parseInt(cleanInput);
+      if (num >= 1 && num <= 10) {
+        return `${num}/10`;
+      }
+    }
+    
+    // If input is already in x/y format, validate it
+    if (/^\d+\/\d+$/.test(cleanInput)) {
+      const [numerator, denominator] = cleanInput.split('/').map(Number);
+      if (numerator >= 1 && numerator <= 10 && denominator === 10) {
+        return cleanInput;
+      }
+    }
+    
+    return input; // Return original if doesn't match expected patterns
+  };
+
   const validateHealthData = (): string | null => {
-    // Validate height
+    // Validate height for elementary students (6-11 years old)
     if (heightInput.trim()) {
       const height = parseFloat(heightInput);
       if (isNaN(height) || height <= 0) {
-        return "Chiều cao phải là số dương";
+        return "Chiều cao phải là số dương hợp lệ";
       }
-      if (height < 110 || height > 160) {
-        return "Chiều cao của học sinh phải từ 110-160cm";
+      if (height < 80) {
+        return "Chiều cao quá thấp, vui lòng kiểm tra lại";
+      }
+      if (height > 180) {
+        return "Chiều cao quá cao cho học sinh tiểu học, vui lòng kiểm tra lại";
+      }
+      if (height < 105 || height > 155) {
+        return "Chiều cao của học sinh tiểu học thường từ 105-155cm";
       }
     }
 
-    // Validate weight
+    // Validate weight for elementary students (6-11 years old)
     if (weightInput.trim()) {
       const weight = parseFloat(weightInput);
       if (isNaN(weight) || weight <= 0) {
-        return "Cân nặng phải là số dương";
+        return "Cân nặng phải là số dương hợp lệ";
       }
-      if (weight < 20 || weight > 70) {
-        return "Cân nặng của học sinh phải từ 20-70kg";
+      if (weight < 12) {
+        return "Cân nặng quá nhẹ, vui lòng kiểm tra lại";
+      }
+      if (weight > 80) {
+        return "Cân nặng quá nặng cho học sinh tiểu học, vui lòng kiểm tra lại";
+      }
+      if (weight < 16 || weight > 50) {
+        return "Cân nặng của học sinh tiểu học thường từ 16-50kg";
+      }
+    }
+
+    // Validate vision format
+    if (formData.vision.trim()) {
+      const visionInput = formData.vision.trim();
+      // Check if it's a valid number or x/10 format
+      if (!/^\d+$/.test(visionInput) && !/^\d+\/10$/.test(visionInput)) {
+        return "Thị lực phải là số từ 1-10 hoặc định dạng x/10";
+      }
+      
+      if (/^\d+$/.test(visionInput)) {
+        const num = parseInt(visionInput);
+        if (num < 1 || num > 10) {
+          return "Thị lực phải từ 1-10";
+        }
+      }
+      
+      if (/^\d+\/10$/.test(visionInput)) {
+        const numerator = parseInt(visionInput.split('/')[0]);
+        if (numerator < 1 || numerator > 10) {
+          return "Thị lực phải từ 1/10 đến 10/10";
+        }
       }
     }
 
@@ -366,6 +428,24 @@ export default function CreateHealthRecordScreen() {
         return;
       }
 
+      // Check student status
+      if (selectedStudent.status && selectedStudent.status !== 'active') {
+        let statusMessage = "Học sinh không còn hoạt động";
+        switch (selectedStudent.status) {
+          case 'graduated':
+            statusMessage = "Học sinh đã tốt nghiệp";
+            break;
+          case 'transferred':
+            statusMessage = "Học sinh đã chuyển trường";
+            break;
+          case 'reserved':
+            statusMessage = "Học sinh đang bảo lưu";
+            break;
+        }
+        Alert.alert("Không thể tạo hồ sơ", `${statusMessage}. Chỉ có thể tạo hồ sơ sức khỏe cho học sinh đang học.`);
+        return;
+      }
+
       // Validate required fields
       if (!formData.vision.trim()) {
         Alert.alert("Lỗi", "Vui lòng nhập thông tin thị lực");
@@ -374,6 +454,17 @@ export default function CreateHealthRecordScreen() {
 
       if (!formData.hearing.trim()) {
         Alert.alert("Lỗi", "Vui lòng nhập thông tin thính lực");
+        return;
+      }
+
+      // Validate height and weight are provided
+      if (!heightInput.trim()) {
+        Alert.alert("Lỗi", "Vui lòng nhập chiều cao");
+        return;
+      }
+
+      if (!weightInput.trim()) {
+        Alert.alert("Lỗi", "Vui lòng nhập cân nặng");
         return;
       }
 
@@ -394,6 +485,7 @@ export default function CreateHealthRecordScreen() {
         birthday: selectedStudent.birthday || '',
         height: parseFloat(heightInput) || 0,
         weight: parseFloat(weightInput) || 0,
+        vision: formatVision(formData.vision), // Ensure vision is properly formatted
         chronicDiseases: chronicDiseasesInput
           .split(",")
           .map((item) => item.trim())
@@ -649,13 +741,34 @@ export default function CreateHealthRecordScreen() {
               {renderInput(
                 "Thị lực",
                 formData.vision,
-                (text) => setFormData({ ...formData, vision: text }),
-                "Ví dụ: 10/10, 8/10, cận thị..."
+                (text) => {
+                  // Limit input length to prevent excessive characters
+                  if (text.length > 10) {
+                    return; // Don't update if too long
+                  }
+                  
+                  // Only allow numbers, slash, and basic text
+                  const validText = text.replace(/[^0-9\/a-zA-ZÀ-ỹ\s]/g, '');
+                  
+                  // Auto-format vision input when user finishes typing
+                  const formattedText = formatVision(validText);
+                  setFormData({ ...formData, vision: formattedText });
+                },
+                "Ví dụ: 8 (tự động thành 8/10), 10/10..."
               )}
               {renderInput(
                 "Thính lực",
                 formData.hearing,
-                (text) => setFormData({ ...formData, hearing: text }),
+                (text) => {
+                  // Limit input length to prevent excessive characters
+                  if (text.length > 100) {
+                    return; // Don't update if too long
+                  }
+                  
+                  // Only allow letters, numbers, spaces, and Vietnamese characters
+                  const validText = text.replace(/[^a-zA-ZÀ-ỹ0-9\s,.-]/g, '');
+                  setFormData({ ...formData, hearing: validText });
+                },
                 "Ví dụ: Bình thường, giảm nghe nhẹ..."
               )}
               {renderInput(
@@ -664,12 +777,27 @@ export default function CreateHealthRecordScreen() {
                 (text) => {
                   // Only allow positive numbers and decimal point
                   const numericText = text.replace(/[^0-9.]/g, '');
+                  
+                  // Limit input length to prevent excessive digits
+                  if (numericText.length > 5) {
+                    return; // Don't update if too long
+                  }
+                  
                   // Prevent multiple decimal points
                   const parts = numericText.split('.');
                   const validText = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : numericText;
+                  
+                  // Real-time validation for elementary students
+                  if (validText && !validText.endsWith('.')) {
+                    const value = parseFloat(validText);
+                    if (value > 180) {
+                      return; // Don't allow unrealistic heights for elementary students
+                    }
+                  }
+                  
                   setHeightInput(validText);
                 },
-                "Nhập chiều cao từ 110-160cm",
+                "Nhập chiều cao từ 105-155cm (học sinh tiểu học)",
                 false,
                 "numeric"
               )}
@@ -679,12 +807,27 @@ export default function CreateHealthRecordScreen() {
                 (text) => {
                   // Only allow positive numbers and decimal point
                   const numericText = text.replace(/[^0-9.]/g, '');
+                  
+                  // Limit input length to prevent excessive digits
+                  if (numericText.length > 5) {
+                    return; // Don't update if too long
+                  }
+                  
                   // Prevent multiple decimal points
                   const parts = numericText.split('.');
                   const validText = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : numericText;
+                  
+                  // Real-time validation for elementary students
+                  if (validText && !validText.endsWith('.')) {
+                    const value = parseFloat(validText);
+                    if (value > 80) {
+                      return; // Don't allow unrealistic weights for elementary students
+                    }
+                  }
+                  
                   setWeightInput(validText);
                 },
-                "Nhập cân nặng từ 20-70kg",
+                "Nhập cân nặng từ 16-50kg (học sinh tiểu học)",
                 false,
                 "numeric"
               )}

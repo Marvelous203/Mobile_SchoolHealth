@@ -3,19 +3,19 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { api } from "../../../../../lib/api";
+import { api, getMedicineById, getSupplyById } from "../../../../../lib/api";
 import { MedicalEvent } from "../../../../../lib/types";
-import { getMedicineById, getSupplyById } from "../../../../../lib/api";
+
 
 export default function MedicalEventDetailScreen() {
   const router = useRouter();
@@ -499,7 +499,7 @@ export default function MedicalEventDetailScreen() {
                 medicalEvent.schoolNurse.fullName,
                 true
               )}
-              {renderInfoItem("Email", medicalEvent.schoolNurse.email)}
+              {/* {renderInfoItem("Email", medicalEvent.schoolNurse.email)} */}
               {renderInfoItem("Số điện thoại", medicalEvent.schoolNurse.phone)}
               {medicalEvent.schoolNurse.image && (
                 <View style={styles.avatarContainer}>
@@ -641,7 +641,7 @@ export default function MedicalEventDetailScreen() {
           "Thông tin hệ thống",
           "cog",
           <>
-            {renderInfoItem("ID sự kiện", medicalEvent._id)}
+            {/* {renderInfoItem("ID sự kiện", medicalEvent._id)} */}
             {renderInfoItem("Tạo lúc", formatDate(medicalEvent.createdAt))}
             {renderInfoItem("Cập nhật lúc", formatDate(medicalEvent.updatedAt))}
           </>,

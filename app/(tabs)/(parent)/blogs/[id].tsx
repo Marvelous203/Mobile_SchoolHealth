@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native'
+import { WebView } from 'react-native-webview'
 
 // Interface cho dữ liệu thực tế từ API
 interface ApiBlog {
@@ -29,6 +31,8 @@ interface ApiBlog {
   categoryId: string;
   userId: string;
   commentIds: string[];
+  banner?: string;
+  image?: string;
 }
 
 interface ApiComment {
@@ -50,6 +54,7 @@ export default function BlogDetail() {
   const [refreshing, setRefreshing] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [webViewHeight, setWebViewHeight] = useState(400);
 
   const loadBlogDetail = async () => {
     try {
@@ -178,25 +183,109 @@ export default function BlogDetail() {
 
       {/* Blog Content */}
       <View style={styles.blogContainer}>
-        <Text style={styles.blogTitle}>{blog.title}</Text>
-        
-        <View style={styles.blogMeta}>
-          <Text style={styles.blogAuthor}>
-            Tác giả: {blog.username || 'Ẩn danh'}
-          </Text>
-          <Text style={styles.blogDate}>
-            {formatDate(blog.createdAt)}
-          </Text>
-          <View style={styles.categoryTag}>
-            <Text style={styles.categoryText}>{blog.categoryName || 'Chưa phân loại'}</Text>
-          </View>
-        </View>
-        
-        {blog.description && (
-          <Text style={styles.blogDescription}>{blog.description}</Text>
+        {/* Banner Image */}
+        {blog.banner && (
+          <Image 
+            source={{ uri: blog.banner }}
+            style={styles.bannerImage}
+            resizeMode="cover"
+          />
         )}
         
-        <Text style={styles.blogContent}>{stripHtml(blog.content)}</Text>
+        <View style={styles.blogContentArea}>
+          <Text style={styles.blogTitle}>{blog.title}</Text>
+          
+          <View style={styles.blogMeta}>
+            <Text style={styles.blogAuthor}>
+              Tác giả: {blog.username || 'Ẩn danh'}
+            </Text>
+            <Text style={styles.blogDate}>
+              {formatDate(blog.createdAt)}
+            </Text>
+            <View style={styles.categoryTag}>
+              <Text style={styles.categoryText}>{blog.categoryName || 'Chưa phân loại'}</Text>
+            </View>
+          </View>
+          
+          {blog.description && (
+            <Text style={styles.blogDescription}>{blog.description}</Text>
+          )}
+          
+          {/* HTML Content with WebView */}
+          <View style={styles.webViewContainer}>
+            <WebView
+              source={{ html: `
+                <html>
+                  <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                      body {
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                        font-size: 16px;
+                        line-height: 1.6;
+                        color: #333;
+                        margin: 0;
+                        padding: 16px;
+                      }
+                      img {
+                        max-width: 100%;
+                        height: auto;
+                        border-radius: 8px;
+                        margin: 8px 0;
+                      }
+                      h1, h2, h3, h4, h5, h6 {
+                        color: #1a1a1a;
+                        margin-top: 24px;
+                        margin-bottom: 16px;
+                      }
+                      p {
+                        margin-bottom: 16px;
+                      }
+                      a {
+                        color: #007AFF;
+                        text-decoration: none;
+                      }
+                    </style>
+                  </head>
+                  <body>
+                    ${blog.content}
+                    <script>
+                      function sendHeight() {
+                        const height = document.body.scrollHeight;
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ height }));
+                      }
+                      window.addEventListener('load', sendHeight);
+                      setTimeout(sendHeight, 100);
+                    </script>
+                  </body>
+                </html>
+              ` }}
+              style={[styles.webView, { height: webViewHeight }]}
+              scrollEnabled={false}
+              showsVerticalScrollIndicator={false}
+              showsHorizontalScrollIndicator={false}
+              onMessage={(event) => {
+                try {
+                  const data = JSON.parse(event.nativeEvent.data);
+                  if (data.height) {
+                    setWebViewHeight(Math.max(200, data.height + 20));
+                  }
+                } catch (error) {
+                  console.log('Error parsing WebView message:', error);
+                }
+              }}
+            />
+          </View>
+          
+          {/* Additional Image */}
+          {blog.image && (
+            <Image 
+              source={{ uri: blog.image }}
+              style={styles.contentImage}
+              resizeMode="cover"
+            />
+          )}
+        </View>
       </View>
 
       {/* Comments Section */}
@@ -311,7 +400,7 @@ const styles = StyleSheet.create({
   blogContainer: {
     backgroundColor: 'white',
     margin: 16,
-    padding: 16,
+    padding: 0,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: {
@@ -321,6 +410,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+    overflow: 'hidden',
+  },
+  bannerImage: {
+    width: '100%',
+    height: 250,
+  },
+  blogContentArea: {
+    padding: 16,
   },
   blogTitle: {
     fontSize: 24,
@@ -368,6 +465,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     lineHeight: 24,
+    marginBottom: 16,
+  },
+  webViewContainer: {
+    marginBottom: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  webView: {
+    height: 400,
+    backgroundColor: 'transparent',
+  },
+  contentImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginTop: 16,
   },
   commentsSection: {
     backgroundColor: 'white',

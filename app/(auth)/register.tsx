@@ -47,7 +47,7 @@ export default function Register() {
   const handleRegister = async () => {
     // Basic validation
     if (!name || !email || !password || !confirmPassword || !phone) {
-      setError("Please fill in all fields")
+      setError("Vui lòng điền đầy đủ thông tin")
       return
     }
 
@@ -59,13 +59,13 @@ export default function Register() {
     }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match")
+      setError("Mật khẩu xác nhận không khớp")
       return
     }
 
     // Validate student codes only for mother role
     if (parentType === "mother" && studentCodes.filter(code => code.trim()).length === 0) {
-      setError("Please enter at least one student code for mother registration")
+      setError("Vui lòng nhập ít nhất một mã học sinh cho đăng ký phụ huynh")
       return
     }
 
@@ -98,8 +98,8 @@ export default function Register() {
       
       if (response.success) {
         Alert.alert(
-          "Registration Successful", 
-          response.message || "Your parent account has been created successfully. Please login.",
+          "Đăng ký thành công", 
+          response.message || "Tài khoản phụ huynh đã được tạo thành công. Vui lòng đăng nhập.",
           [
             {
               text: "OK",
@@ -109,7 +109,7 @@ export default function Register() {
         )
       } else {
         // Handle error response with message or errors array
-        let errorMessage = response.message || "Registration failed"
+        let errorMessage = response.message || "Đăng ký thất bại"
         
         // If there are specific errors, show them
         if (response.errors && Array.isArray(response.errors) && response.errors.length > 0) {
@@ -171,23 +171,23 @@ export default function Register() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.logoContainer}>
           <Image source={{ uri: "https://via.placeholder.com/120" }} style={styles.logo} />
-          <Text style={styles.title}>Parent Registration</Text>
-          <Text style={styles.subtitle}>Join School Health Manager as a Parent</Text>
+          <Text style={styles.title}>Đăng ký phụ huynh</Text>
+          <Text style={styles.subtitle}>Tham gia Hệ thống quản lý sức khỏe học đường với tư cách phụ huynh</Text>
         </View>
 
         <View style={styles.form}>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput style={styles.input} placeholder="Enter your full name" value={name} onChangeText={setName} />
+            <Text style={styles.label}>Họ và tên</Text>
+            <TextInput style={styles.input} placeholder="Nhập họ và tên của bạn" value={name} onChangeText={setName} />
           </View>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your email"
+              placeholder="Nhập địa chỉ email"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -196,10 +196,10 @@ export default function Register() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Phone</Text>
+            <Text style={styles.label}>Số điện thoại</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your phone number"
+              placeholder="Nhập số điện thoại"
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
@@ -207,10 +207,10 @@ export default function Register() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>Mật khẩu</Text>
             <TextInput
               style={styles.input}
-              placeholder="Create a password"
+              placeholder="Tạo mật khẩu"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -218,10 +218,10 @@ export default function Register() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Confirm Password</Text>
+            <Text style={styles.label}>Xác nhận mật khẩu</Text>
             <TextInput
               style={styles.input}
-              placeholder="Confirm your password"
+              placeholder="Xác nhận mật khẩu"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
@@ -229,13 +229,13 @@ export default function Register() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Student Codes {parentType === "mother" ? "*" : "(Optional)"}
+            <Text style={styles.label}>Mã học sinh {parentType === "mother" ? "*" : "(Tùy chọn)"}
             </Text>
             {studentCodes.map((code, index) => (
               <View key={index} style={styles.studentCodeRow}>
                 <TextInput
                   style={[styles.input, styles.studentCodeInput]}
-                  placeholder={`Enter student code ${index + 1}`}
+                  placeholder={`Nhập mã học sinh ${index + 1}`}
                   value={code}
                   onChangeText={(text) => {
                     const newCodes = [...studentCodes]
@@ -261,30 +261,30 @@ export default function Register() {
               style={styles.addButton}
               onPress={() => setStudentCodes([...studentCodes, ""])}
             >
-              <Text style={styles.addButtonText}>+ Add Another Student Code</Text>
+              <Text style={styles.addButtonText}>+ Thêm mã học sinh khác</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.roleSelector}>
-            <Text style={styles.label}>Relationship:</Text>
+            <Text style={styles.label}>Mối quan hệ:</Text>
             <View style={styles.roleButtons}>
               <TouchableOpacity
                 style={[styles.roleButton, parentType === "father" && styles.selectedRole]}
                 onPress={() => setParentType("father")}
               >
-                <Text style={styles.roleText}>Father</Text>
+                <Text style={styles.roleText}>Bố</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.roleButton, parentType === "mother" && styles.selectedRole]}
                 onPress={() => setParentType("mother")}
               >
-                <Text style={styles.roleText}>Mother</Text>
+                <Text style={styles.roleText}>Mẹ</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.roleButton, parentType === "guardian" && styles.selectedRole]}
                 onPress={() => setParentType("guardian")}
               >
-                <Text style={styles.roleText}>Guardian</Text>
+                <Text style={styles.roleText}>Người giám hộ</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -294,14 +294,14 @@ export default function Register() {
             onPress={handleRegister}
             disabled={isLoading}
           >
-            <Text style={styles.buttonText}>{isLoading ? "Creating Account..." : "Register as Parent"}</Text>
+            <Text style={styles.buttonText}>{isLoading ? "Đang tạo tài khoản..." : "Đăng ký phụ huynh"}</Text>
           </TouchableOpacity>
 
           <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>Already have an account? </Text>
+            <Text style={styles.loginText}>Đã có tài khoản? </Text>
             <Link href="/(auth)/login" asChild>
               <TouchableOpacity>
-                <Text style={styles.loginLink}>Login</Text>
+                <Text style={styles.loginLink}>Đăng nhập</Text>
               </TouchableOpacity>
             </Link>
           </View>

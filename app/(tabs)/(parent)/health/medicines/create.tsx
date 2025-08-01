@@ -610,6 +610,18 @@ export default function CreateMedicineScreen() {
       return;
     }
 
+    // Check student status - only active students can receive medicine
+    if (selectedStudent?.status !== "active") {
+      const statusMessages = {
+        'graduated': 'Học sinh đã tốt nghiệp',
+        'transferred': 'Học sinh đã chuyển trường',
+        'reserved': 'Học sinh đang bảo lưu'
+      };
+      const reason = statusMessages[selectedStudent?.status as keyof typeof statusMessages] || 'Học sinh không còn hoạt động';
+      Alert.alert("Không thể gửi thuốc", `${reason}. Chỉ có thể gửi thuốc cho học sinh đang học.`);
+      return;
+    }
+
     // Validation for all medicines
     for (let i = 0; i < medicines.length; i++) {
       const medicine = medicines[i];
@@ -1233,17 +1245,23 @@ export default function CreateMedicineScreen() {
 
         {/* Submit Button */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.submitButton, loading && styles.disabledButton]}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            <Text style={styles.submitButtonText}>
-              {loading
-                ? "Đang tạo..."
-                : `Tạo đơn thuốc (${medicines.length} loại)`}
-            </Text>
-          </TouchableOpacity>
+          {checkUserPermission(user) ? (
+            <TouchableOpacity
+              style={[styles.submitButton, loading && styles.disabledButton]}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              <Text style={styles.submitButtonText}>
+                {loading
+                  ? "Đang tạo..."
+                  : `Tạo đơn thuốc (${medicines.length} loại)`}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.viewOnlyContainer}>
+              <Text style={styles.viewOnlyText}>Chỉ được phép xem</Text>
+            </View>
+          )}
         </View>
 
         {/* Nurse Selection Modal */}
@@ -1724,6 +1742,20 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  viewOnlyContainer: {
+    backgroundColor: "#f5f5f5",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  viewOnlyText: {
+    color: "#666",
+    fontSize: 16,
+    fontWeight: "500",
   },
   autoCalculationInfo: {
     flexDirection: "row",

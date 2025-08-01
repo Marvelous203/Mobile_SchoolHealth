@@ -372,7 +372,7 @@ export default function MedicineSubmissionDetailScreen() {
               <Text style={styles.infoLabel}>Họ tên:</Text>
               <Text style={styles.infoValue}>{submission.schoolNurse?.fullName || 'N/A'}</Text>
             </View>
-            <View style={styles.infoRow}>
+            {/* <View style={styles.infoRow}>
               <Ionicons name="mail" size={20} color="#666" />
               <Text style={styles.infoLabel}>Email:</Text>
               <Text style={styles.infoValue}>{submission.schoolNurse?.email || 'N/A'}</Text>
@@ -381,7 +381,7 @@ export default function MedicineSubmissionDetailScreen() {
               <Ionicons name="call" size={20} color="#666" />
               <Text style={styles.infoLabel}>Điện thoại:</Text>
               <Text style={styles.infoValue}>{submission.schoolNurse?.phone || 'N/A'}</Text>
-            </View>
+            </View> */}
           </View>
         </View>
 

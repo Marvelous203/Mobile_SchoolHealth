@@ -1,6 +1,6 @@
 "use client"
 
-import { searchVaccineAppointments, getCurrentUserId, api } from "@/lib/api"
+import { api, getCurrentUserId, searchVaccineAppointments } from "@/lib/api"
 import { VaccineAppointmentResult } from "@/lib/types"
 import { Ionicons } from "@expo/vector-icons"
 import { LinearGradient } from "expo-linear-gradient"
@@ -133,7 +133,7 @@ export default function VaccineResultsScreen() {
       console.log('✅ Total vaccine results loaded:', allVaccineResults.length)
     } catch (error) {
       console.error('Failed to load vaccine results:', error)
-      Alert.alert("Lỗi", "Không thể tải kết quả vaccine")
+      Alert.alert("Lỗi", "Không thể tải kết quả tiêm chủng")
     } finally {
       setIsLoading(false)
     }
@@ -194,6 +194,14 @@ export default function VaccineResultsScreen() {
           bgColor: "#fffbeb",
           text: "Chờ xử lý",
           icon: "time-outline",
+        }
+      case "vaccinated":
+      case "đã tiêm":
+        return {
+          color: "#059669",
+          bgColor: "#ecfdf5",
+          text: "Đã tiêm",
+          icon: "medical",
         }
       default:
         return {
@@ -266,7 +274,7 @@ export default function VaccineResultsScreen() {
       <SafeAreaView style={styles.loadingContainer}>
         <View style={styles.loadingContent}>
           <ActivityIndicator size="large" color="#6366f1" />
-          <Text style={styles.loadingText}>Đang tải kết quả vaccine...</Text>
+          <Text style={styles.loadingText}>Đang tải kết quả tiêm chủng...</Text>
         </View>
       </SafeAreaView>
     )
@@ -280,7 +288,7 @@ export default function VaccineResultsScreen() {
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Kết quả Vaccine</Text>
+          <Text style={styles.headerTitle}>Kết quả tiêm chủng</Text>
           <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh} activeOpacity={0.7}>
             <Ionicons name="refresh" size={20} color="#fff" />
           </TouchableOpacity>
@@ -329,7 +337,12 @@ export default function VaccineResultsScreen() {
           </View>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>
-              {vaccineResults.filter(item => item.status === "completed").length}
+              {vaccineResults.filter(item => 
+                item.status === "completed" || 
+                item.status === "vaccinated" || 
+                item.status?.toLowerCase() === "completed" ||
+                item.status?.toLowerCase() === "vaccinated"
+              ).length}
             </Text>
             <Text style={styles.statLabel}>Hoàn thành</Text>
           </View>
@@ -342,9 +355,9 @@ export default function VaccineResultsScreen() {
           <View style={styles.emptyIconContainer}>
             <Ionicons name="medical-outline" size={64} color="#d1d5db" />
           </View>
-          <Text style={styles.emptyTitle}>Chưa có kết quả vaccine</Text>
+          <Text style={styles.emptyTitle}>Chưa có kết quả tiêm chủng</Text>
           <Text style={styles.emptyText}>
-            Hiện tại chưa có kết quả vaccine nào được ghi nhận.
+            Hiện tại chưa có kết quả tiêm chủng nào được ghi nhận.
           </Text>
         </View>
       ) : (

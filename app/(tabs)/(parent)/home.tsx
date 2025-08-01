@@ -363,15 +363,22 @@ export default function ParentHome() {
         console.warn("Could not count pending medicines:", error)
       }
 
-      // Count appointments
+      // Count pending appointments
       try {
         const appointments = await api.searchAppointments({
           pageNum: 1,
-          pageSize: 10,
+          pageSize: 50,
           parentId: userProfile._id,
-          status: "approved",
+          status: "pending"
         })
-        upcomingAppointments = appointments.pageInfo?.totalItems || 0
+        // Handle both array response and paginated response
+        if (Array.isArray(appointments)) {
+          upcomingAppointments = appointments.length
+        } else if (appointments.pageData && Array.isArray(appointments.pageData)) {
+          upcomingAppointments = appointments.pageData.length
+        } else {
+          upcomingAppointments = appointments.pageInfo?.totalItems || 0
+        }
       } catch (error) {
         console.warn("Could not count appointments:", error)
       }
@@ -446,7 +453,7 @@ export default function ParentHome() {
             <Ionicons name="list-outline" size={24} color="#f59e0b" />
           </View>
           <Text style={styles.statNumber}>{quickStats.pendingTasks}</Text>
-          <Text style={styles.statLabel}>Cần xử lý</Text>
+          <Text style={styles.statLabel}>Chờ xử lý</Text>
         </View>
 
         <View style={styles.statCard}>

@@ -45,7 +45,7 @@ export default function HealthLayout() {
       <Stack.Screen
         name="vaccine-results"
         options={{
-          title: "Kết quả Vaccine",
+          title: "Kết quả Tiêm Chủng",
         }}
       />
       <Stack.Screen

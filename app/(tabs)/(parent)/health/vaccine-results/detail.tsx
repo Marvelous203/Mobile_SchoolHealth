@@ -1,6 +1,6 @@
 "use client"
 
-import { getVaccineAppointmentDetail } from "@/lib/api"
+import { getVaccineAppointmentDetail, getVaccineTypeById } from "@/lib/api"
 import { VaccineAppointmentResult } from "@/lib/types"
 import { Ionicons } from "@expo/vector-icons"
 import { LinearGradient } from "expo-linear-gradient"
@@ -27,6 +27,7 @@ export default function VaccineResultDetailScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [vaccineResult, setVaccineResult] = useState<VaccineAppointmentResult | null>(null)
+  const [vaccineType, setVaccineType] = useState<any>(null)
   const [scrollY] = useState(new Animated.Value(0))
 
   useEffect(() => {
@@ -43,12 +44,25 @@ export default function VaccineResultDetailScreen() {
       if (response && response.success && response.data) {
         setVaccineResult(response.data)
         console.log('✅ Loaded vaccine result detail:', response.data)
+        
+        // Load vaccine type details if vaccineTypeId exists
+        if (response.data.event?.vaccineTypeId) {
+          try {
+            const vaccineTypeResponse = await getVaccineTypeById(response.data.event.vaccineTypeId)
+            if (vaccineTypeResponse && vaccineTypeResponse.success && vaccineTypeResponse.data) {
+              setVaccineType(vaccineTypeResponse.data)
+              console.log('✅ Loaded vaccine type detail:', vaccineTypeResponse.data)
+            }
+          } catch (vaccineTypeError) {
+            console.error('Failed to load vaccine type detail:', vaccineTypeError)
+          }
+        }
       } else {
-        Alert.alert("Lỗi", "Không tìm thấy kết quả vaccine")
+        Alert.alert("Lỗi", "Không tìm thấy kết quả tiêm chủng")
       }
     } catch (error) {
       console.error('Failed to load vaccine result detail:', error)
-      Alert.alert("Lỗi", "Không thể tải chi tiết kết quả vaccine")
+      Alert.alert("Lỗi", "Không thể tải chi tiết kết quả tiêm chủng")
     } finally {
       setIsLoading(false)
     }
@@ -109,6 +123,14 @@ export default function VaccineResultDetailScreen() {
           bgColor: "#fffbeb",
           text: "Chờ xử lý",
           icon: "time-outline",
+        }
+      case "vaccinated":
+      case "đã tiêm":
+        return {
+          color: "#059669",
+          bgColor: "#ecfdf5",
+          text: "Đã tiêm",
+          icon: "medical",
         }
       default:
         return {
@@ -217,7 +239,7 @@ export default function VaccineResultDetailScreen() {
           </View>
           <Text style={styles.errorTitle}>Không tìm thấy kết quả</Text>
           <Text style={styles.errorText}>
-            Kết quả vaccine này có thể đã bị xóa hoặc không tồn tại.
+            Kết quả tiêm chủng này có thể đã bị xóa hoặc không tồn tại.
           </Text>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7}>
             <Ionicons name="arrow-back" size={20} color="#fff" />
@@ -293,15 +315,15 @@ export default function VaccineResultDetailScreen() {
               <View style={styles.studentIconBadge}>
                 <Ionicons name="person" size={20} color="#6366f1" />
               </View>
-              <Text style={styles.studentCode}>
+              {/* <Text style={styles.studentCode}>
                 {vaccineResult.student?.studentCode || "Mã học sinh"}
-              </Text>
+              </Text> */}
             </View>
 
             <View style={styles.heroStats}>
               <View style={styles.heroStatItem}>
                 <Ionicons name="medical-outline" size={16} color="rgba(255,255,255,0.8)" />
-                <Text style={styles.heroStatText}>{vaccineResult.event?.vaccineName || vaccineResult.event?.title || "Sự kiện vaccine"}</Text>
+                <Text style={styles.heroStatText}>{vaccineType?.name || vaccineResult.event?.vaccineName || vaccineResult.event?.title || "Sự kiện vaccine"}</Text>
               </View>
               {vaccineResult.event?.location && (
                 <View style={styles.heroStatItem}>
@@ -378,12 +400,12 @@ export default function VaccineResultDetailScreen() {
                 </View>
               </View>
 
-              <View style={styles.infoRow}>
+              {/* <View style={styles.infoRow}>
                 <View style={styles.infoItem}>
                   <Text style={styles.infoLabel}>Mã học sinh</Text>
                   <Text style={styles.infoValue}>{vaccineResult.student?.studentCode || "Không có thông tin"}</Text>
                 </View>
-              </View>
+              </View> */}
 
               {vaccineResult.student?.studentIdCode && (
                 <View style={styles.infoRow}>
@@ -442,11 +464,67 @@ export default function VaccineResultDetailScreen() {
                 </View>
               )}
 
-              {vaccineResult.event?.vaccineName && (
+              {/* Display vaccine name from vaccine type if available, otherwise from event */}
+              <View style={styles.infoRow}>
+                <View style={styles.infoItem}>
+                  <Text style={styles.infoLabel}>Loại vaccine</Text>
+                  <Text style={styles.infoValue}>
+                    {vaccineType?.name || vaccineResult.event?.vaccineName || "Không có thông tin"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Display vaccine type details if available */}
+              {vaccineType?.description && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Loại vaccine</Text>
-                    <Text style={styles.infoValue}>{vaccineResult.event.vaccineName}</Text>
+                    <Text style={styles.infoLabel}>Mô tả vaccine</Text>
+                    <Text style={styles.infoValue}>{vaccineType.description}</Text>
+                  </View>
+                </View>
+              )}
+
+              {vaccineType?.manufacturer && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Nhà sản xuất</Text>
+                    <Text style={styles.infoValue}>{vaccineType.manufacturer}</Text>
+                  </View>
+                </View>
+              )}
+
+              {vaccineType?.dosage && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Liều lượng</Text>
+                    <Text style={styles.infoValue}>{vaccineType.dosage}</Text>
+                  </View>
+                </View>
+              )}
+
+              {vaccineType?.ageGroup && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Nhóm tuổi</Text>
+                    <Text style={styles.infoValue}>{vaccineType.ageGroup}</Text>
+                  </View>
+                </View>
+              )}
+
+              {vaccineType?.sideEffects && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Tác dụng phụ</Text>
+                    <Text style={styles.infoValue}>{vaccineType.sideEffects}</Text>
+                  </View>
+                </View>
+              )}
+
+              {vaccineType?.contraindications && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Chống chỉ định</Text>
+                    <Text style={styles.infoValue}>{vaccineType.contraindications}</Text>
                   </View>
                 </View>
               )}
@@ -515,23 +593,23 @@ export default function VaccineResultDetailScreen() {
                 </View>
               )}
 
-              {vaccineResult.checkedBy?.phone && (
+              {/* {vaccineResult.checkedBy?.phone && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Số điện thoại y tá</Text>
                     <Text style={styles.infoValue}>{vaccineResult.checkedBy.phone}</Text>
                   </View>
                 </View>
-              )}
+              )} */}
 
-              {vaccineResult.checkedBy?.email && (
+              {/* {vaccineResult.checkedBy?.email && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Email y tá</Text>
                     <Text style={styles.infoValue}>{vaccineResult.checkedBy.email}</Text>
                   </View>
                 </View>
-              )}
+              )} */}
 
               {!vaccineResult.isEligible && vaccineResult.reasonIfIneligible && (
                 <View style={styles.infoRow}>

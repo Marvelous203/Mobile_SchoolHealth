@@ -250,7 +250,7 @@ export default function MedicalCheckResultsScreen() {
               </Text>
             </View>
             <Text style={styles.checkDate}>
-              {formatDate(item.checkedAt)} • {formatTime(item.checkedAt)}
+              {formatDate(item.medicalCheckedAt)} • {formatTime(item.medicalCheckedAt)}
             </Text>
           </View>
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { getMedicalCheckAppointmentDetail } from "@/lib/api";
+import { MedicalCheckAppointment, PostMedicalCheckStatus } from "@/lib/types";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
@@ -15,8 +17,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getMedicalCheckAppointmentDetail } from "@/lib/api";
-import { MedicalCheckAppointment, PostMedicalCheckStatus } from "@/lib/types";
 
 // Using interface from types.ts
 
@@ -232,9 +232,9 @@ export default function MedicalCheckResultDetailScreen() {
               <View style={styles.studentIconBadge}>
                 <Ionicons name="person" size={20} color="#6366f1" />
               </View>
-              <Text style={styles.studentCode}>
+              {/* <Text style={styles.studentCode}>
                 {medicalCheckResult.student?.studentCode || "Mã học sinh"}
-              </Text>
+              </Text> */}
             </View>
 
             <View style={styles.heroStats}>
@@ -274,7 +274,7 @@ export default function MedicalCheckResultDetailScreen() {
                 </View>
               </View>
 
-              <View style={styles.statusItem}>
+              {/* <View style={styles.statusItem}>
                 <Text style={styles.statusLabel}>Tình trạng sau khám</Text>
                 <View style={[styles.statusBadge, { backgroundColor: postCheckConfig.bgColor }]}>
                   <Ionicons name={postCheckConfig.icon as any} size={14} color={postCheckConfig.color} />
@@ -282,7 +282,7 @@ export default function MedicalCheckResultDetailScreen() {
                     {postCheckConfig.text}
                   </Text>
                 </View>
-              </View>
+              </View> */}
             </View>
           </View>
 
@@ -303,12 +303,12 @@ export default function MedicalCheckResultDetailScreen() {
                 </View>
               </View>
 
-              <View style={styles.infoRow}>
+              {/* <View style={styles.infoRow}>
                 <View style={styles.infoItem}>
                   <Text style={styles.infoLabel}>Mã học sinh</Text>
                   <Text style={styles.infoValue}>{medicalCheckResult.student?.studentCode || "Không có thông tin"}</Text>
                 </View>
-              </View>
+              </View> */}
 
               {medicalCheckResult.student?.studentIdCode && (
                 <View style={styles.infoRow}>
